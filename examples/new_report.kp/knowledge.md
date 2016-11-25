@@ -8,8 +8,9 @@ tags:
 - firefox
 - example
 created_at: 2016-06-29 00:00:00
-updated_at: 2016-11-25 13:58:41.223548
+updated_at: 2016-11-25 14:04:10.525900
 tldr: This is short description of the content and findings of the post.
+thumbnail: images/output_16_0.png
 ---
 *NOTE: In the TL,DR, optimize for **clarity** and **comprehensiveness**. The goal is to convey the post with the least amount of friction, especially since ipython/beakers require much more scrolling than blog posts. Make the reader get a correct understanding of the post's takeaway, and the points supporting that takeaway without having to strain through paragraphs and tons of prose. Bullet points are great here, but are up to you. Try to avoid academic paper style abstracts.*
 
@@ -37,12 +38,30 @@ from matplotlib import pyplot as plt
 from moztelemetry.dataset import Dataset
 from moztelemetry import get_pings_properties, get_one_ping_per_client
 ```
+    Unable to parse whitelist (/home/hadoop/anaconda2/lib/python2.7/site-packages/moztelemetry/histogram-whitelists.json). Assuming all histograms are acceptable.
+
+
 The goal of this example is to determine if Firefox has a similar startup time distribution on all Operating Systems. Let's start by fetching 10% of Telemetry submissions for a given submission date...
 
 
 ```python
 Dataset.from_source("telemetry").schema
 ```
+
+
+
+
+    [u'submissionDate',
+     u'sourceName',
+     u'sourceVersion',
+     u'docType',
+     u'appName',
+     u'appUpdateChannel',
+     u'appVersion',
+     u'appBuildId']
+
+
+
 
 ```python
 pings = Dataset.from_source("telemetry") \
@@ -82,6 +101,11 @@ plt.ylabel("log10(firstPaint)")
 plt.xlabel("Operating System")
 plt.show()
 ```
+
+
+![png](images/output_16_0.png)
+
+
 *NOTE: in graphs, optimize for being able to **stand alone**. Put enough labeling in your graph to be understood on its own. When aggregating and putting things in presentations, you won't have to recreate and add code to each plot to make it understandable without the entire post around it. Will it be understandable without several paragraphs?*
 
 ### Appendix
