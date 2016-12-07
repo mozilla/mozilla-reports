@@ -10,7 +10,7 @@ tags:
 - firefox desktop
 - main_summary
 created_at: 2016-03-28 00:00:00
-updated_at: 2016-11-30 13:32:52.499763
+updated_at: 2016-12-06 16:48:50.531152
 tldr: "Compute churn / retention information for unique segments of Firefox \nusers\
   \ acquired during a specific period of time.\n"
 ---
@@ -422,7 +422,7 @@ def get_newest_per_client(df):
         df['country'],
         df['profile_creation_date'],
         df['subsession_start_date'],
-        df['submission_date'],
+        df['submission_date_s3'],
         df['sync_configured'],
         df['sync_count_desktop'],
         df['sync_count_mobile'],
@@ -472,7 +472,7 @@ while week_end < todays:
         week_end_excl = fmt(week_end_date + timedelta(1), date_format="%Y-%m-%d")
         week_start_hyphenated = fmt(week_start_date, date_format="%Y-%m-%d")
         
-        current_week = df.filter(df['submission_date_s3'] >= week_start).filter(df['submission_date_s3'] <= week_end_slop).filter(df['subsession_start_date'] >= week_start_hyphenated).filter(df['subsession_start_date'] < week_end_excl).drop('submission_date_s3')
+        current_week = df.filter(df['submission_date_s3'] >= week_start).filter(df['submission_date_s3'] <= week_end_slop).filter(df['subsession_start_date'] >= week_start_hyphenated).filter(df['subsession_start_date'] < week_end_excl)
         newest_per_client = get_newest_per_client(current_week)
 
         # Clamp broken subsession values in the [0, MAX_SUBSESSION_LENGTH] range.
