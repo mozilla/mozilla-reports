@@ -11,7 +11,7 @@ tags:
 - firefox desktop
 - main_summary
 created_at: 2016-03-28 00:00:00
-updated_at: 2016-12-19 19:58:38.404988
+updated_at: 2016-12-20 11:43:10.914829
 tldr: "Compute churn / retention information for unique segments of Firefox \nusers\
   \ acquired during a specific period of time.\n"
 ---
@@ -19,7 +19,7 @@ tldr: "Compute churn / retention information for unique segments of Firefox \nus
 
 Compute churn / retention information for unique segments of Firefox users acquired during a specific period of time. Tracked in [Bug 1226379](https://bugzilla.mozilla.org/show_bug.cgi?id=1226379). The underlying dataset is generated via the [telemetry-batch-view](https://github.com/mozilla/telemetry-batch-view/blob/master/src/main/scala/com/mozilla/telemetry/views/MainSummaryView.scala) code, and is generated once a day.
 
-The aggregated churn data is updated weekly.
+The aggregated churn data is updated weekly. Due to the client reporting latency, we needs to wait 10 days for the data to stabilize. The report will generate a dataset for the closest sunday before `today - 17 days`. The 17 day figure is calculated by finding the closest day we can aggregate data from (10 days), and then find the closest sunday the week before that (at least 7 days). 
 
 Code is based on the previous [FHR analysis code](https://github.com/mozilla/churn-analysis).
 
@@ -428,12 +428,16 @@ def upload_to_s3(records, churn_outfile):
     transfer.upload_file(churn_outfile, churn_bucket, churn_s3,
                          extra_args={'ACL': 'bucket-owner-full-control'})
 
-    # Also upload it to the dashboard:
-    # Update the dashboard file
-    dash_bucket = "net-mozaws-prod-metrics-data"
-    dash_s3_name = "telemetry-churn/{}".format(churn_outfile)
-    transfer.upload_file(churn_outfile, dash_bucket, dash_s3_name,
-                         extra_args={'ACL': 'bucket-owner-full-control'})
+    # TODO: Re-enable uploading to the dashboard when cutover happends
+    ENABLE_UPLOAD_DASHBOARD = False
+    
+    if ENABLE_UPLOAD_DASHBOARD:
+        # Also upload it to the dashboard:
+        # Update the dashboard file
+        dash_bucket = "net-mozaws-prod-metrics-data"
+        dash_s3_name = "telemetry-churn/{}".format(churn_outfile)
+        transfer.upload_file(churn_outfile, dash_bucket, dash_s3_name,
+                             extra_args={'ACL': 'bucket-owner-full-control'})
 
     
 def compute_churn_week(df, week_start, enable_upload_csv=False):
@@ -445,8 +449,8 @@ def compute_churn_week(df, week_start, enable_upload_csv=False):
     week_start: datestring of this time period
     enable_upload_to_s3: bool that determines whether a gzipped csv file is uploaded"""
     
-    churn_bucket_parquet = "net-mozaws-prod-us-west-2-pipeline-analysis"
-    churn_s3_path_parquet = "amiyaguchi/churn"
+    churn_bucket_parquet = "telemetry-parquet"
+    churn_s3_path_parquet = "churn"
     
     week_start_date = _datetime.strptime(week_start, "%Y%m%d")
     week_end_date = week_start_date + timedelta(6)
@@ -528,8 +532,9 @@ def compute_churn_week(df, week_start, enable_upload_csv=False):
         churn_outfile = get_churn_filename(week_start, week_end)
         upload_to_s3(records_df.rdd.collect(), churn_outfile)
 
-    # Write to s3 as parquet, file size is on the order of 40MB
-    parquet_s3_path = ("s3://{}/{}/v1/week_start={}"
+    # Write to s3 as parquet, file size is on the order of 40MB. We bump the version
+    # number because v1 is the path to the old telemetry-batch-view churn data.
+    parquet_s3_path = ("s3://{}/{}/v2/week_start={}"
                        .format(churn_bucket_parquet, churn_s3_path_parquet, week_start))
     print "{}: Writing output as parquet to {}".format(_datetime.utcnow(), parquet_s3_path)
     records_df.repartition(1).write.parquet(parquet_s3_path, mode="overwrite")
