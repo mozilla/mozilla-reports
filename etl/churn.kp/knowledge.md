@@ -11,7 +11,7 @@ tags:
 - firefox desktop
 - main_summary
 created_at: 2016-03-28 00:00:00
-updated_at: 2016-12-19 12:31:08.819433
+updated_at: 2016-12-19 19:58:38.404988
 tldr: "Compute churn / retention information for unique segments of Firefox \nusers\
   \ acquired during a specific period of time.\n"
 ---
@@ -48,6 +48,7 @@ from boto3.s3.transfer import S3Transfer
 from traceback import print_exc
 from pyspark.sql.window import Window
 import pyspark.sql.functions as func
+from moztelemetry.standards import snap_to_beginning_of_week
 
 bucket = "telemetry-parquet"
 prefix = "main_summary/v3"
@@ -240,15 +241,6 @@ def top_country(country):
         return country
     return "ROW"
 
-def most_recent_sunday(d):
-    """ Get the date corresponding to the Sunday on or before the given date."""
-    if d is None:
-        return None
-    weekday = d.weekday()
-    if weekday == 6:
-        return d
-    return d - timedelta(weekday + 1)
-
 def get_week_num(creation, today):
     if creation is None or today is None:
         return None
@@ -280,7 +272,7 @@ def convert(d2v, week_start, datum):
         channel = "{}-cck-{}".format(datum.normalized_channel, datum.distribution_id)
     out["channel"] = channel
     out["geo"] = top_country(datum.country)
-    out["acquisition_period"] = most_recent_sunday(pcd)
+    out["acquisition_period"] = snap_to_beginning_of_week(pcd, "Sunday")
     out["start_version"] = get_effective_version(d2v, channel, pcd_formatted)
 
     deviceCount = 0
@@ -343,9 +335,6 @@ d2v = make_d2v(get_release_info())
 def get_churn_filename(week_start, week_end):
     return "churn-{}-{}.by_activity.csv.gz".format(week_start, week_end)
 
-def get_churn_filepath():
-    return "amiyaguchi/churn"
-
 def fmt(d, date_format="%Y%m%d"):
     return _datetime.strftime(d, date_format)
 ```
@@ -373,7 +362,6 @@ from operator import add
 
 
 MAX_SUBSESSION_LENGTH = 60 * 60 * 48 # 48 hours in seconds.
-bucket = "net-mozaws-prod-us-west-2-pipeline-analysis"
 
 record_columns = [
     'channel',
@@ -417,6 +405,8 @@ def get_newest_per_client(df):
 def upload_to_s3(records, churn_outfile):
     client = boto3.client('s3', 'us-west-2')
     transfer = S3Transfer(client)
+    churn_bucket = "net-mozaws-prod-us-west-2-pipeline-analysis"
+    churn_filepath = "amiyaguchi/churn"
 
     print "{}: Writing output to {}".format(_datetime.utcnow(), churn_outfile)
 
@@ -434,8 +424,8 @@ def upload_to_s3(records, churn_outfile):
         print "{}: finished writing lines".format(_datetime.utcnow())
 
     # Now upload it to S3:
-    churn_s3 = "{}/{}".format(get_churn_filepath(), churn_outfile)
-    transfer.upload_file(churn_outfile, bucket, churn_s3,
+    churn_s3 = "{}/{}".format(churn_filepath, churn_outfile)
+    transfer.upload_file(churn_outfile, churn_bucket, churn_s3,
                          extra_args={'ACL': 'bucket-owner-full-control'})
 
     # Also upload it to the dashboard:
@@ -446,13 +436,17 @@ def upload_to_s3(records, churn_outfile):
                          extra_args={'ACL': 'bucket-owner-full-control'})
 
     
-def compute_churn_week(df, week_start):
+def compute_churn_week(df, week_start, enable_upload_csv=False):
     """Compute the churn data for this week. Note that it takes 10 days
     from the end of this period for all the activity to arrive. This data
     should be from Sunday through Saturday.
     
     df: DataFrame of the dataset relevant to computing the churn
-    week_start: datestring of this time period"""
+    week_start: datestring of this time period
+    enable_upload_to_s3: bool that determines whether a gzipped csv file is uploaded"""
+    
+    churn_bucket_parquet = "net-mozaws-prod-us-west-2-pipeline-analysis"
+    churn_s3_path_parquet = "amiyaguchi/churn"
     
     week_start_date = _datetime.strptime(week_start, "%Y%m%d")
     week_end_date = week_start_date + timedelta(6)
@@ -530,13 +524,13 @@ def compute_churn_week(df, week_start):
     
     records_df = aggregated.map(lambda x: x[0] + x[1]).toDF(record_columns)
 
-    churn_outfile = get_churn_filename(week_start, week_end)
-    # upload_to_s3(records_df.rdd.collect(), churn_outfile)
+    if enable_upload_csv:
+        churn_outfile = get_churn_filename(week_start, week_end)
+        upload_to_s3(records_df.rdd.collect(), churn_outfile)
 
-    
     # Write to s3 as parquet, file size is on the order of 40MB
     parquet_s3_path = ("s3://{}/{}/v1/week_start={}"
-                       .format(bucket, get_churn_filepath(), week_start))
+                       .format(churn_bucket_parquet, churn_s3_path_parquet, week_start))
     print "{}: Writing output as parquet to {}".format(_datetime.utcnow(), parquet_s3_path)
     records_df.repartition(1).write.parquet(parquet_s3_path, mode="overwrite")
 
@@ -551,29 +545,39 @@ def daterange(start_date, end_date):
 
 def backfill(df, start_date_yyyymmdd):
     """ Import data from a start date to an end date"""
-    start_date = most_recent_sunday(_datetime.strptime(start_date_yyyymmdd, "%Y%m%d"))
+    start_date = snap_to_beginning_of_week(
+        _datetime.strptime(start_date_yyyymmdd, "%Y%m%d"), 
+        "Sunday")
     end_date = _datetime.utcnow() - timedelta(1) # yesterday
     for d in daterange(start_date, end_date):
         try:
             compute_churn_week(df, d)
         except Exception as e:
-            log.error(e)
+            print e
 ```
 
 ```python
 from os import environ
 
+# Uncomment to set the date manually
+# os.environ['date'] = "20161101"
+
 env_date = environ.get('date', None)
 if not env_date:
     raise ValueError("date not provided")
 
-# 10 days of slack for incoming data + the 7 days used in churn computation
-week_start_date = most_recent_sunday(_datetime.strptime(env_date, "%Y%m%d") - timedelta(17))
-compute_churn_week(dataset, fmt(week_start_date))
+# If this job is scheduled, we need the input date to lag a total of 
+# 10 days of slack for incoming data + the 7 days used in churn computation, or 17 days
+# from the current date. 
+week_start_date = snap_to_beginning_of_week(
+    _datetime.strptime(env_date, "%Y%m%d") - timedelta(17),
+    "Sunday")
+
+compute_churn_week(dataset, fmt(week_start_date), enable_upload_csv=False)
 ```
 
 ```python
-# run manually with an arbitratry Sunday chosen from the last few months
-# 20151101 is world start
-# compute_churn_week(dataset, '20160904')
+# 20151101 is world start, but data is only stored for 9 months on main_summary
+# Uncomment to manually backfill this job
+# backfill(dataset, '20160904')
 ```
