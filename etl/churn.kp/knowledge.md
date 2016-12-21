@@ -11,7 +11,7 @@ tags:
 - firefox desktop
 - main_summary
 created_at: 2016-03-28 00:00:00
-updated_at: 2016-12-20 11:43:10.914829
+updated_at: 2016-12-20 17:21:49.674515
 tldr: "Compute churn / retention information for unique segments of Firefox \nusers\
   \ acquired during a specific period of time.\n"
 ---
@@ -530,8 +530,13 @@ def compute_churn_week(df, week_start, enable_upload_csv=False):
 
     if enable_upload_csv:
         churn_outfile = get_churn_filename(week_start, week_end)
-        upload_to_s3(records_df.rdd.collect(), churn_outfile)
-
+        # Don't bother with replacing any csv files that already exist
+        try:
+            upload_to_s3(records_df.rdd.collect(), churn_outfile)
+        except botocore.exceptions.ClientError as e:
+            print("File for {} already exists, skipping upload: {}"
+                  .format(churn_outfile, e))
+            
     # Write to s3 as parquet, file size is on the order of 40MB. We bump the version
     # number because v1 is the path to the old telemetry-batch-view churn data.
     parquet_s3_path = ("s3://{}/{}/v2/week_start={}"
@@ -548,7 +553,7 @@ def daterange(start_date, end_date):
         yield (start_date + timedelta(n*7)).strftime("%Y%m%d")
 
 
-def backfill(df, start_date_yyyymmdd):
+def backfill(df, start_date_yyyymmdd, enable_upload=False):
     """ Import data from a start date to an end date"""
     start_date = snap_to_beginning_of_week(
         _datetime.strptime(start_date_yyyymmdd, "%Y%m%d"), 
@@ -556,7 +561,7 @@ def backfill(df, start_date_yyyymmdd):
     end_date = _datetime.utcnow() - timedelta(1) # yesterday
     for d in daterange(start_date, end_date):
         try:
-            compute_churn_week(df, d)
+            compute_churn_week(df, d, enable_upload)
         except Exception as e:
             print e
 ```
@@ -584,5 +589,5 @@ compute_churn_week(dataset, fmt(week_start_date), enable_upload_csv=False)
 ```python
 # 20151101 is world start, but data is only stored for 9 months on main_summary
 # Uncomment to manually backfill this job
-# backfill(dataset, '20160904')
+# backfill(dataset, '20160904', True)
 ```
