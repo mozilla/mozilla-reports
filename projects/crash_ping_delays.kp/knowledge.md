@@ -12,7 +12,7 @@ thumbnail: images/output_20_1.png
 ---
 ### Crash Ping Submission Delays by Channel
 
-This is follow-up analysis to the [Main Ping Submission and Recording Delays by Channel](https://github.com/mozilla/mozilla-reports/blob/master/projects/ping_delays.kp/knowledge.md) analysis previously performed.
+This is follow-up analysis to the [Main Ping Submission and Recording Delays by Channel](http://reports.telemetry.mozilla.org/post/projects/ping_delays.kp) analysis previously performed.
 
 Specifically, I'm investigating what typical values of "submission delay" might be for "crash" pings.
 
