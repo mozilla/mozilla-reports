@@ -6,7 +6,7 @@ tags:
 - sync
 - etl
 created_at: 2016-11-15 00:00:00
-updated_at: 2017-01-06 11:33:47.340749
+updated_at: 2017-01-30 10:07:30.711348
 tldr: Read, convert, and store sync log data to Parquet form per [bug 1291340](https://bugzilla.mozilla.org/show_bug.cgi?id=1291340).
 ---
 ## Bug 1291340 - Import sync log data
@@ -37,10 +37,6 @@ yesterday = dt.strftime(dt.utcnow() - timedelta(1), "%Y%m%d")
 target_day = environ.get("date", yesterday)
 print "Running import for {}".format(target_day)
 ```
-    Unable to parse whitelist (/home/hadoop/anaconda2/lib/python2.7/site-packages/moztelemetry/histogram-whitelists.json). Assuming all histograms are acceptable.
-    Running import for 20170105
-
-
 ### Read the source log data
 
 The sync data on S3 is stored in framed heka format, and is read using the `Dataset` API.
@@ -57,7 +53,7 @@ sync = Dataset(source_bucket, schema).where(name=target_name).where(prefix=targe
 # in the key names themselves.
 # Fetch the summaries and filter the list to the target day.
 summary_prefix = "{}/{}/{}".format(target_name, target_prefix, target_day)
-sync_summaries = [ s for s in sync.summaries() if s['key'].startswith(summary_prefix) ]
+sync_summaries = [ s for s in sync.summaries(sc) if s['key'].startswith(summary_prefix) ]
 ```
 ### Custom heka decoder
 
