@@ -6,7 +6,7 @@ tags:
 - experiment
 - firefox
 created_at: 2017-02-01 00:00:00
-updated_at: 2017-02-08 14:26:49.590771
+updated_at: 2017-02-08 16:14:29.584240
 tldr: 'We take all the pings from yesterday, get the information about any experiments:
   those that started, those running, and those that ended. These are aggregated by
   channel and outputted to files in s3.'
@@ -77,7 +77,7 @@ import requests
 # by the main_channel_counts plugin, and may be inaccurate if the ec2
 # box crashed, but only for the day of the crash. If it crashes, the
 # previous data will be lost.
-COUNTS_JSON_URI = "https://pipeline-cep.prod.mozaws.net/dashboard_output/analysis.frank.main_channel_counts..txt"
+COUNTS_JSON_URI = "https://pipeline-cep.prod.mozaws.net/dashboard_output/analysis.frank.main_channel_counts.counts.json"
 
 ### Aggregation functions, Spark job, output file creation ###
 
