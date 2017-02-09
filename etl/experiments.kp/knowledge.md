@@ -6,7 +6,7 @@ tags:
 - experiment
 - firefox
 created_at: 2017-02-01 00:00:00
-updated_at: 2017-02-08 16:14:29.584240
+updated_at: 2017-02-09 12:39:55.049642
 tldr: 'We take all the pings from yesterday, get the information about any experiments:
   those that started, those running, and those that ended. These are aggregated by
   channel and outputted to files in s3.'
@@ -148,7 +148,7 @@ def write_aggregate(agg, date, filename_prefix='experiments'):
         }
         for exp_id, experiment in channel['experiments'].iteritems():
             d["experiments"][exp_id] = {
-                "active": experiment['active'].items(),
+                "active": experiment['active'],
                 "activations": experiment['EXPERIMENT_ACTIVATION'].items(),
                 "terminations": experiment['EXPERIMENT_TERMINATION'].items() 
             }
