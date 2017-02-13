@@ -7,7 +7,7 @@ tags:
 - fennec
 - etl
 created_at: 2017-02-09 00:00:00
-updated_at: 2017-02-13 07:54:47.110346
+updated_at: 2017-02-13 08:54:35.473182
 tldr: You can write any markdown you want here (the '|' character makes this an escaped
   section)
 ---
@@ -148,7 +148,7 @@ while day <= end:
         subset = dedupe_pings(subset)
         transformed = subset.map(transform)
 
-        s3_output = "s3n://telemetry-test-bucket/frank/mobile/android_clients"
+        s3_output = "s3n://net-mozaws-prod-us-west-2-pipeline-analysis/mobile/android_clients"
         s3_output += "/v1/channel=" + channel + "/submission=" + day.strftime("%Y%m%d") 
         schema = StructType([
             StructField("clientid", StringType(), False),
