@@ -5,8 +5,9 @@ authors:
 tags:
 - search
 created_at: 2017-02-14 00:00:00
-updated_at: 2017-02-14 15:06:13.814938
-tldr: Group searches by key dimensions and export to CSV
+updated_at: 2017-02-16 15:27:01.107146
+tldr: Group searches by key dimensions and export to CSV. This code has not been formally
+  peer-reviewed.
 ---
 ```python
 READ_VERSION = 3
