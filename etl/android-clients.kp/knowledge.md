@@ -7,9 +7,9 @@ tags:
 - fennec
 - etl
 created_at: 2017-02-09 00:00:00
-updated_at: 2017-02-13 08:54:35.473182
-tldr: You can write any markdown you want here (the '|' character makes this an escaped
-  section)
+updated_at: 2017-02-17 15:28:55.511039
+tldr: This notebook maps Fennec saved_session pings to some useful information about
+  clients. This is a 1:1 mapping.
 ---
 
 ```python
