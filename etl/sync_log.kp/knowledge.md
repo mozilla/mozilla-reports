@@ -6,7 +6,7 @@ tags:
 - sync
 - etl
 created_at: 2016-11-15 00:00:00
-updated_at: 2017-01-30 10:07:30.711348
+updated_at: 2017-02-23 11:26:45.796626
 tldr: Read, convert, and store sync log data to Parquet form per [bug 1291340](https://bugzilla.mozilla.org/show_bug.cgi?id=1291340).
 ---
 ## Bug 1291340 - Import sync log data
@@ -62,7 +62,7 @@ The standard heka decoder assumes (based on Telemetry data) that all fields whos
 
 ```python
 import ssl
-from telemetry.util.heka_message import unpack
+from moztelemetry.heka.message_parser import unpack
 
 # Custom decoder for sync messages since we can have scalar fields with dots in their names.
 def sync_decoder(message):
