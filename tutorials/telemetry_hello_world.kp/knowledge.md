@@ -8,9 +8,8 @@ tags:
 - telemetry
 - spark
 created_at: 2016-03-10 00:00:00
-updated_at: 2016-11-29 15:07:12.387854
+updated_at: 2017-02-24 18:00:25.791035
 tldr: Brief introduction to Spark and Telemetry in Python
-thumbnail: images/output_23_0.png
 ---
 ### Telemetry Hello World
 
@@ -30,9 +29,6 @@ from moztelemetry.dataset import Dataset
 
 %matplotlib inline
 ```
-    Unable to parse whitelist (/home/hadoop/anaconda2/lib/python2.7/site-packages/moztelemetry/histogram-whitelists.json). Assuming all histograms are acceptable.
-
-
 ### Basics
 
 The goal of this example is to plot the startup distribution for each OS. Let's see how many parallel workers we have at our disposal:
@@ -41,14 +37,6 @@ The goal of this example is to plot the startup distribution for each OS. Let's 
 ```python
 sc.defaultParallelism
 ```
-
-
-
-
-    32
-
-
-
 Let's fetch 10% of Telemetry submissions for a given submission date...
 
 
@@ -56,27 +44,12 @@ Let's fetch 10% of Telemetry submissions for a given submission date...
 Dataset.from_source("telemetry").schema
 ```
 
-
-
-
-    [u'submissionDate',
-     u'sourceName',
-     u'sourceVersion',
-     u'docType',
-     u'appName',
-     u'appUpdateChannel',
-     u'appVersion',
-     u'appBuildId']
-
-
-
-
 ```python
-pings = Dataset.from_source("telemetry") \
-    .where(docType='main') \
-    .where(submissionDate="20161101") \
-    .where(appUpdateChannel="nightly") \
-    .records(sc, sample=0.1)
+pings = Dataset.from_source("telemetry").where(
+    docType='main',
+    submissionDate="20161101",
+    appUpdateChannel="nightly"
+).records(sc, sample=0.1)
 ```
 ... and extract only the attributes we need from the Telemetry submissions:
 
@@ -110,14 +83,6 @@ How many pings are we looking at?
 ```python
 cached.count()
 ```
-
-
-
-
-    7132
-
-
-
 Let's group the startup timings by OS:
 
 
@@ -134,11 +99,6 @@ frame.boxplot(return_type="axes")
 plt.ylabel("log10(firstPaint)")
 plt.show()
 ```
-
-
-![png](images/output_23_0.png)
-
-
 You can also create interactive plots with [plotly](https://plot.ly/):
 
 
@@ -150,14 +110,6 @@ plt.ylabel("count")
 plt.xlabel("log10(firstPaint)")
 py.iplot_mpl(fig, strip_style=True)
 ```
-
-
-
-
-<iframe id="igraph" scrolling="no" style="border:none;"seamless="seamless" src="https://plot.ly/~mozilla/1873.embed" height="525" width="100%"></iframe>
-
-
-
 ### Histograms
 
 Let's extract a histogram from the submissions:
@@ -187,19 +139,6 @@ def aggregate_arrays(xs, ys):
 aggregate = histograms.map(lambda p: p["payload/histograms/GC_MARK_MS"]).reduce(aggregate_arrays)
 aggregate.plot(kind="bar", figsize=(15, 7))
 ```
-
-
-
-
-    <matplotlib.axes._subplots.AxesSubplot at 0x7f1cea8b49d0>
-
-
-
-
-
-![png](images/output_31_1.png)
-
-
 Keyed histograms follow a similar pattern. To extract a keyed histogram for which we know the key/label we are interested in:
 
 
@@ -217,18 +156,6 @@ keys = keys.distinct().collect()
 ```python
 keys[:5]
 ```
-
-
-
-
-    [u'firefox@zenmate.com',
-     u'jid1-f3mYMbCpz2AZYl@jetpack',
-     u'jid0-SQnwtgW1b8BsMB5PLV5WScEDWOjw@jetpack',
-     u'light_plugin_ACF0E80077C511E59DED005056C00008@kaspersky.com',
-     u'netvideohunter@netvideohunter.com']
-
-
-
 Retrieve the histograms for a set of labels:
 
 
