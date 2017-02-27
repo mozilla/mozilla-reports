@@ -6,7 +6,7 @@ tags:
 - mobile
 - etl
 created_at: 2017-02-17 00:00:00
-updated_at: 2017-02-17 15:24:16.273582
+updated_at: 2017-02-27 11:52:22.810043
 tldr: This job takes the Fennec saved session pings and transforms them, where there
   could be multiple events per ping.
 ---
@@ -75,11 +75,15 @@ def transform(ping):
 
                 sessions = set()
                 experiments = []
-                for session in event["sessions"]:
-                    if "experiment.1:" in session:
-                        experiments.append(safe_str(session[13:]))
-                    else:
-                        sessions.add(safe_str(session))
+                
+                try:
+                    for session in event["sessions"]:
+                        if "experiment.1:" in session:
+                            experiments.append(safe_str(session[13:]))
+                        else:
+                            sessions.add(safe_str(session))
+                except TypeError:
+                    pass
 
                 output.append([clientId, submissionDate, timestamp, action, method, extras, json.dumps(list(sessions)), json.dumps(experiments)])
 
