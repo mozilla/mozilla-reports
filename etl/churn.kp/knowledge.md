@@ -11,7 +11,7 @@ tags:
 - firefox desktop
 - main_summary
 created_at: 2016-03-28 00:00:00
-updated_at: 2016-12-20 17:21:49.674515
+updated_at: 2017-03-07 12:36:09.512317
 tldr: "Compute churn / retention information for unique segments of Firefox \nusers\
   \ acquired during a specific period of time.\n"
 ---
@@ -47,21 +47,37 @@ import botocore
 from boto3.s3.transfer import S3Transfer
 from traceback import print_exc
 from pyspark.sql.window import Window
-import pyspark.sql.functions as func
+import pyspark.sql.functions as F
 from moztelemetry.standards import snap_to_beginning_of_week
 
 bucket = "telemetry-parquet"
 prefix = "main_summary/v3"
-%time dataset = sqlContext.read.load("s3://{}/{}".format(bucket, prefix), "parquet")
+s3path = "s3://{}/{}".format(bucket, prefix)
+%time df = spark.read.option("mergeSchema", "true").parquet(s3path)
 ```
 
 ```python
-dataset = dataset.select('client_id', 'channel', 'normalized_channel', 'country',
-                         'profile_creation_date', 'subsession_start_date', 
-                         'subsession_length', 'distribution_id', 'sync_configured', 
-                         'sync_count_desktop', 'sync_count_mobile', 'app_version', 
-                         'timestamp', 'submission_date_s3'
-                        ).withColumnRenamed('app_version', 'version')
+source_columns = [
+    "app_version",
+    "attribution",
+    "channel",
+    "client_id",
+    "country",
+    "default_search_engine",
+    "distribution_id",
+    "locale",
+    "normalized_channel",
+    "profile_creation_date",
+    "submission_date_s3",
+    "subsession_length",
+    "subsession_start_date",
+    "sync_configured",
+    "sync_count_desktop",
+    "sync_count_mobile",
+    "timestamp"
+]
+
+dataset = df.select(source_columns).withColumnRenamed('app_version', 'version')
 ```
 
 ```python
@@ -274,6 +290,17 @@ def convert(d2v, week_start, datum):
     out["geo"] = top_country(datum.country)
     out["acquisition_period"] = snap_to_beginning_of_week(pcd, "Sunday")
     out["start_version"] = get_effective_version(d2v, channel, pcd_formatted)
+    
+    # bug 1337037 - stub attribution
+    attribution_fields = ["source", "medium", "campaign", "content"]
+    if datum.attribution:
+        for field in attribution_fields:
+            out[field] = datum.attribution[field]
+    
+    # bug 1323598
+    out['distribution_id'] = datum.distribution_id
+    out['default_search_engine'] = datum.default_search_engine
+    out['locale'] = datum.locale
 
     deviceCount = 0
     if datum.sync_count_desktop is not None:
@@ -372,6 +399,13 @@ record_columns = [
     'sync_usage',
     'current_version',
     'current_week',
+    'source',
+    'medium',
+    'campaign',
+    'content',
+    'distribution_id',
+    'default_search_engine',
+    'locale',
     'is_active',
     'n_profiles',
     'usage_hours',
@@ -380,29 +414,16 @@ record_columns = [
 
 
 def get_newest_per_client(df):
-    windowSpec = Window.partitionBy(df['client_id']).orderBy(df['timestamp'].desc())
-    # Note: use 'rowNumber' instead of 'row_number' with Spark < v1.6
-    rownum_by_timestamp = (func.row_number().over(windowSpec))
+    windowSpec = Window.partitionBy(F.col('client_id')).orderBy(F.col('timestamp').desc())
+    rownum_by_timestamp = (F.row_number().over(windowSpec))
     selectable_by_client = df.select(
-        df['client_id'],
-        df['channel'],
-        df['normalized_channel'],
-        df['country'],
-        df['profile_creation_date'],
-        df['subsession_start_date'],
-        df['submission_date_s3'],
-        df['sync_configured'],
-        df['sync_count_desktop'],
-        df['sync_count_mobile'],
-        df['distribution_id'],
-        df['version'],
-        df['timestamp'],
-        rownum_by_timestamp.alias('row_number')
+        rownum_by_timestamp.alias('row_number'),
+        *[F.col(col) for col in df.columns]
     )
     return selectable_by_client.filter(selectable_by_client['row_number'] == 1)
 
 
-def upload_to_s3(records, churn_outfile):
+def upload_to_s3(df, churn_outfile):
     client = boto3.client('s3', 'us-west-2')
     transfer = S3Transfer(client)
     churn_bucket = "net-mozaws-prod-us-west-2-pipeline-analysis"
@@ -412,8 +433,9 @@ def upload_to_s3(records, churn_outfile):
 
     # Write the file out as gzipped csv
     with gzip.open(churn_outfile, 'wb') as fout:
-        fout.write(",".join(record_columns) + "\n")
+        fout.write(",".join(df.columns) + "\n")
         print "{}: Wrote header to {}".format(_datetime.utcnow(), churn_outfile)
+        records = df.rdd.collect()
         for r in records:
             try:
                 fout.write(csv(r))
@@ -430,7 +452,7 @@ def upload_to_s3(records, churn_outfile):
 
     # TODO: Re-enable uploading to the dashboard when cutover happends
     ENABLE_UPLOAD_DASHBOARD = False
-    
+
     if ENABLE_UPLOAD_DASHBOARD:
         # Also upload it to the dashboard:
         # Update the dashboard file
@@ -440,7 +462,7 @@ def upload_to_s3(records, churn_outfile):
                              extra_args={'ACL': 'bucket-owner-full-control'})
 
     
-def compute_churn_week(df, week_start, enable_upload_csv=False):
+def compute_churn_week(df, week_start, bucket, prefix, enable_upload_csv=False):
     """Compute the churn data for this week. Note that it takes 10 days
     from the end of this period for all the activity to arrive. This data
     should be from Sunday through Saturday.
@@ -449,19 +471,16 @@ def compute_churn_week(df, week_start, enable_upload_csv=False):
     week_start: datestring of this time period
     enable_upload_to_s3: bool that determines whether a gzipped csv file is uploaded"""
     
-    churn_bucket_parquet = "telemetry-parquet"
-    churn_s3_path_parquet = "churn"
-    
     week_start_date = _datetime.strptime(week_start, "%Y%m%d")
     week_end_date = week_start_date + timedelta(6)
     week_start = fmt(week_start_date)
     week_end = fmt(week_end_date)
-    
+
     # Verify that the start date is a Sunday
     if week_start_date.weekday() != 6:
         print("Week start date {} is not a Sunday".format(week_start))
         return
-    
+
     # If the data for this week can still be coming, don't try to compute the churn.
     week_end_slop = fmt(week_end_date + timedelta(10))
     today = fmt(_datetime.utcnow())
@@ -469,7 +488,7 @@ def compute_churn_week(df, week_start, enable_upload_csv=False):
         print("Skipping week of {} to {} - Data is still arriving until {}."
               .format(week_start, week_end, week_end_slop))
         return
-    
+
     print("Starting week from {} to {} at {}"
           .format(week_start, week_end, _datetime.utcnow()))
     # the subsession_start_date field has a different form than submission_date_s3,
@@ -483,15 +502,18 @@ def compute_churn_week(df, week_start, enable_upload_csv=False):
           .filter(df['subsession_start_date'] >= week_start_hyphenated)
           .filter(df['subsession_start_date'] < week_end_excl)
     )
-    newest_per_client = get_newest_per_client(current_week)
 
     # Clamp broken subsession values in the [0, MAX_SUBSESSION_LENGTH] range.
     clamped_subsession = (
-        current_week.select(current_week['client_id'],
-            func.when(current_week['subsession_length'] > MAX_SUBSESSION_LENGTH, MAX_SUBSESSION_LENGTH)
-                .otherwise(func.when(current_week['subsession_length'] < 0, 0)
-                    .otherwise(current_week['subsession_length']))
-                .alias('subsession_length'))
+        current_week
+        .select(
+            F.col('client_id'),
+            F.when(
+                F.col('subsession_length') > MAX_SUBSESSION_LENGTH, MAX_SUBSESSION_LENGTH
+            ).otherwise(
+                F.when(F.col('subsession_length') < 0, 0).otherwise(F.col('subsession_length'))
+            ).alias('subsession_length')
+            )
     )
 
     # Compute the overall usage time for each client by summing the subsession lengths.
@@ -502,14 +524,18 @@ def compute_churn_week(df, week_start, enable_upload_csv=False):
             .withColumnRenamed('sum(subsession_length)', 'usage_seconds')
     )
 
-    # Append this column to the original data frame.
+    # Get the newest ping per client and append to original dataframe
+    newest_per_client = get_newest_per_client(current_week)
     newest_with_usage = newest_per_client.join(grouped_usage_time, 'client_id', 'inner')
-        
+
     converted = newest_with_usage.rdd.map(lambda x: convert(d2v, week_start, x))
 
     # Don't bother to filter out non-good records - they will appear 
     # as 'unknown' in the output.
-    countable = converted.map(lambda x: ((
+    countable = converted.map(
+        lambda x: (
+            (
+                # attributes unique to a client
                 x.get('channel', 'unknown'),
                 x.get('geo', 'unknown'),
                 "yes" if x.get('is_funnelcake', False) else "no",
@@ -518,42 +544,70 @@ def compute_churn_week(df, week_start, enable_upload_csv=False):
                 x.get('sync_usage', 'unknown'),
                 x.get('current_version', 'unknown'),
                 x.get('current_week', 'unknown'),
-                x.get('is_active', 'unknown')), (1, x.get('usage_hours', 0), x.get('squared_usage_hours', 0))))
+                x.get('source', 'unknown'),
+                x.get('medium', 'unknown'),
+                x.get('campaign', 'unknown'),
+                x.get('content', 'unknown'),
+                x.get('distribution_id', 'unknown'),
+                x.get('default_search_engine', 'unknown'),
+                x.get('locale', 'unknown'),
+                x.get('is_active', 'unknown')
+            ),(
+                1,  # active users 
+                x.get('usage_hours', 0),
+                x.get('squared_usage_hours',0) 
+            )
+        )
+    )
 
     def reduce_func(x, y):
         return (x[0] + y[0], # Sum active users
                 x[1] + y[1], # Sum usage_hours
                 x[2] + y[2]) # Sum squared_usage_hours
+
     aggregated = countable.reduceByKey(reduce_func)
-    
+
     records_df = aggregated.map(lambda x: x[0] + x[1]).toDF(record_columns)
 
+    # New jobs will read as parquet, csv files exist for legacy purposes
     if enable_upload_csv:
         churn_outfile = get_churn_filename(week_start, week_end)
+        # groupby and aggregate over the original attributes
+        initial_attributes = [
+            'channel', 'geo', 'is_funnelcake',
+            'acquisition_period', 'start_version', 'sync_usage',
+            'current_version', 'current_week', 'is_active'
+        ]
+        agg_columns = ['n_profiles', 'usage_hours', 'sum_squared_usage_hours']
+        upload_df = (
+            records_df
+                .groupby(initial_attributes)
+                .agg(*[F.sum(x).alias(x) for x in agg_columns])
+        )
         # Don't bother with replacing any csv files that already exist
         try:
-            upload_to_s3(records_df.rdd.collect(), churn_outfile)
+            upload_to_s3(upload_df, churn_outfile)
         except botocore.exceptions.ClientError as e:
             print("File for {} already exists, skipping upload: {}"
                   .format(churn_outfile, e))
-            
+
     # Write to s3 as parquet, file size is on the order of 40MB. We bump the version
     # number because v1 is the path to the old telemetry-batch-view churn data.
-    parquet_s3_path = ("s3://{}/{}/v2/week_start={}"
-                       .format(churn_bucket_parquet, churn_s3_path_parquet, week_start))
+    parquet_s3_path = ("s3://{}/{}/week_start={}"
+                       .format(bucket, prefix, week_start))
     print "{}: Writing output as parquet to {}".format(_datetime.utcnow(), parquet_s3_path)
     records_df.repartition(1).write.parquet(parquet_s3_path, mode="overwrite")
 
     print("Finished week from {} to {} at {}"
           .format(week_start, week_end, _datetime.utcnow()))
 
-    
+
 def daterange(start_date, end_date):
     for n in range(int((end_date - start_date).days)//7):
         yield (start_date + timedelta(n*7)).strftime("%Y%m%d")
 
 
-def backfill(df, start_date_yyyymmdd, enable_upload=False):
+def backfill(df, start_date_yyyymmdd, bucket, prefix, enable_upload=False):
     """ Import data from a start date to an end date"""
     start_date = snap_to_beginning_of_week(
         _datetime.strptime(start_date_yyyymmdd, "%Y%m%d"), 
@@ -561,7 +615,7 @@ def backfill(df, start_date_yyyymmdd, enable_upload=False):
     end_date = _datetime.utcnow() - timedelta(1) # yesterday
     for d in daterange(start_date, end_date):
         try:
-            compute_churn_week(df, d, enable_upload)
+            compute_churn_week(df, d, bucket, prefix, enable_upload)
         except Exception as e:
             print e
 ```
@@ -569,12 +623,17 @@ def backfill(df, start_date_yyyymmdd, enable_upload=False):
 ```python
 from os import environ
 
-# Uncomment to set the date manually
-# os.environ['date'] = "20161101"
+manual = False
+if manual:
+    os.environ['date'] = fmt(_datetime.now())
+    os.environ['bucket'] = 'net-mozaws-prod-us-west-2-pipeline-analysis'
+    os.environ['prefix'] = 'amiyaguchi/churn'
 
-env_date = environ.get('date', None)
+env_date = environ.get('date')
 if not env_date:
     raise ValueError("date not provided")
+bucket = environ.get('bucket', 'telemetry-parquet')
+prefix = environ.get('prefix', 'churn')
 
 # If this job is scheduled, we need the input date to lag a total of 
 # 10 days of slack for incoming data + the 7 days used in churn computation, or 17 days
@@ -583,11 +642,15 @@ week_start_date = snap_to_beginning_of_week(
     _datetime.strptime(env_date, "%Y%m%d") - timedelta(17),
     "Sunday")
 
-compute_churn_week(dataset, fmt(week_start_date), enable_upload_csv=False)
+compute_churn_week(df = dataset,
+                   week_start = fmt(week_start_date),
+                   bucket = bucket,
+                   prefix = prefix,
+                   enable_upload_csv = False)
 ```
 
 ```python
 # 20151101 is world start, but data is only stored for 9 months on main_summary
 # Uncomment to manually backfill this job
-# backfill(dataset, '20160904', True)
+# backfill(dataset, '20170101', bucket, prefix, False)
 ```
