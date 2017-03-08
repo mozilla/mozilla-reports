@@ -7,10 +7,9 @@ tags:
 - etl
 - csv
 created_at: 2016-03-07 00:00:00
-updated_at: 2017-03-07 14:40:20.515425
+updated_at: 2017-03-09 14:12:17.825445
 tldr: Convert telemetry-parquet/churn to csv
 ---
-
 # Churn to CSV
 
 [Bug 1345217](https://bugzilla.mozilla.org/show_bug.cgi?id=1345217)
@@ -30,6 +29,9 @@ from pyspark.sql import functions as F
 
 def csv(f):
     return ",".join([unicode(a) for a in f])
+
+def fmt(d, date_format="%Y%m%d"):
+    return datetime.strftime(d, date_format)
 
 def collect_and_upload_csv(df, filename, upload_config):
     """ Collect the dataframe into a csv file and upload to target locations. """
@@ -87,10 +89,7 @@ def convert_week(config, week_start=None):
         week_start = sorted(start_dates)[-1].week_start
     
     # find the week end for the filename
-    dateformat = "%Y%m%d"
-    week_end = (
-        datetime.strptime(week_start, dateformat) + timedelta(6)
-    ).strftime(dateformat)
+    week_end = fmt(datetime.strptime(week_start, "%Y%m%d") + timedelta(6))
     
     print("Running for the week of {} to {}".format(week_start, week_end))
     
@@ -113,6 +112,9 @@ def assert_valid_config(config):
 ```
 
 ```python
+from moztelemetry.standards import snap_to_beginning_of_week
+from os import environ
+
 config = {
     "source": "s3://telemetry-parquet/churn/v2",
     "uploads": [
@@ -129,6 +131,7 @@ config = {
     ]
 }
 
+# Set to True to overwrite the configuration with debugging route
 if False:
     config["uploads"] = [
         {
@@ -138,6 +141,16 @@ if False:
         }
     ]
 
+# check for a date, in the case of a backfill
+env_date = environ.get('date')
+week_start = None
+if env_date:
+    # Churn waits 10 days for pings to be sent from the client
+    week_start_date = snap_to_beginning_of_week(
+        datetime.strptime(env_date, "%Y%m%d") - timedelta(17),
+        "Sunday")
+    week_start = fmt(week_start_date)
+
 assert_valid_config(config)
-convert_week(config)
+convert_week(config, week_start)
 ```
