@@ -11,7 +11,7 @@ tags:
 - firefox desktop
 - main_summary
 created_at: 2016-03-28 00:00:00
-updated_at: 2017-03-07 12:36:09.512317
+updated_at: 2017-03-08 10:42:02.552779
 tldr: "Compute churn / retention information for unique segments of Firefox \nusers\
   \ acquired during a specific period of time.\n"
 ---
@@ -627,13 +627,13 @@ manual = False
 if manual:
     os.environ['date'] = fmt(_datetime.now())
     os.environ['bucket'] = 'net-mozaws-prod-us-west-2-pipeline-analysis'
-    os.environ['prefix'] = 'amiyaguchi/churn'
+    os.environ['prefix'] = 'amiyaguchi/churn/v2'
 
 env_date = environ.get('date')
 if not env_date:
     raise ValueError("date not provided")
 bucket = environ.get('bucket', 'telemetry-parquet')
-prefix = environ.get('prefix', 'churn')
+prefix = environ.get('prefix', 'churn/v2')
 
 # If this job is scheduled, we need the input date to lag a total of 
 # 10 days of slack for incoming data + the 7 days used in churn computation, or 17 days
@@ -641,7 +641,9 @@ prefix = environ.get('prefix', 'churn')
 week_start_date = snap_to_beginning_of_week(
     _datetime.strptime(env_date, "%Y%m%d") - timedelta(17),
     "Sunday")
+```
 
+```python
 compute_churn_week(df = dataset,
                    week_start = fmt(week_start_date),
                    bucket = bucket,
@@ -650,7 +652,7 @@ compute_churn_week(df = dataset,
 ```
 
 ```python
-# 20151101 is world start, but data is only stored for 9 months on main_summary
+# 20151101 is world start, but main_summary v3 only goes back to 20160312
 # Uncomment to manually backfill this job
 # backfill(dataset, '20170101', bucket, prefix, False)
 ```
