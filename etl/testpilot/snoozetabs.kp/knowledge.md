@@ -6,7 +6,7 @@ tags:
 - testpilot
 - etl
 created_at: 2017-02-17 00:00:00
-updated_at: 2017-02-21 15:20:44.883764
+updated_at: 2017-03-20 12:24:36.935571
 tldr: This notebook transforms pings from the SnoozeTabs testpilot test to a parquet
   dataset. Docs at https://github.com/bwinton/SnoozeTabs/blob/master/docs/metrics.md
 ---
@@ -14,6 +14,7 @@ tldr: This notebook transforms pings from the SnoozeTabs testpilot test to a par
 from datetime import *
 import dateutil.parser
 from pyspark.sql.types import *
+import boto3
 
 from moztelemetry import get_pings_properties
 from moztelemetry.dataset import Dataset
@@ -88,7 +89,7 @@ def __main__(sc, sqlContext, submission_date):
         .where(appName="Firefox") \
         .records(sc)
 
-    return pings_to_df(
+    old_st = pings_to_df(
         sqlContext,
         get_doctype_pings("testpilottest"),
         DataFrameConfig([
@@ -103,19 +104,32 @@ def __main__(sc, sqlContext, submission_date):
             ("version", "payload/version", None, StringType())
         ])).filter("event IS NOT NULL") \
            .filter("test = 'snoozetabs@mozilla.com'")
+    
+    new_st = pings_to_df(
+        sqlContext,
+        get_doctype_pings("testpilottest"),
+        DataFrameConfig([
+            ("client_id", "clientId", None, StringType()),
+            ("event", "payload/payload/event", None, StringType()),
+            ("snooze_time", "payload/payload/snooze_time", None, LongType()),
+            ("snooze_time_type", "payload/payload/snooze_time_type", None, StringType()),
+            ("creation_date", "creationDate", dateutil.parser.parse, TimestampType()),
+            ("test", "payload/test", None, StringType()),
+            ("variants", "payload/variants", None, StringType()),
+            ("timestamp", "payload/timestamp", None, LongType()),
+            ("version", "payload/version", None, StringType())
+        ])).filter("event IS NOT NULL") \
+           .filter("test = 'snoozetabs@mozilla.com'")
+    return old_st.union(new_st)
 ```
-    Unable to parse whitelist (/home/hadoop/anaconda2/lib/python2.7/site-packages/moztelemetry/histogram-whitelists.json). Assuming all histograms are acceptable.
+    Unable to parse whitelist (/mnt/anaconda2/lib/python2.7/site-packages/moztelemetry/histogram-whitelists.json). Assuming all histograms are acceptable.
 
 
-
-```python
-submission_date = (date.today() - timedelta(1)).strftime("%Y%m%d")
-```
 
 ```python
 tpt = __main__(sc, sqlContext, submission_date)
 ```
 
 ```python
-tpt.repartition(1).write.parquet('s3://telemetry-parquet/testpilot/txp_snoozetabs/v1/submission_date={}'.format(submission_date))
+tpt.repartition(1).write.parquet('s3://telemetry-parquet/testpilot/txp_snoozetabs/v2/submission_date={}'.format(submission_date))
 ```
