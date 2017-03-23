@@ -11,7 +11,7 @@ tags:
 - firefox desktop
 - main_summary
 created_at: 2016-03-28 00:00:00
-updated_at: 2017-03-22 18:02:55.738244
+updated_at: 2017-03-23 09:50:22.610144
 tldr: "Compute churn / retention information for unique segments of Firefox \nusers\
   \ acquired during a specific period of time.\n"
 ---
@@ -414,14 +414,13 @@ def get_newest_per_client(df):
     return selectable_by_client.filter(selectable_by_client['row_number'] == 1)
 
     
-def compute_churn_week(df, week_start, bucket, prefix, enable_upload_csv=False):
+def compute_churn_week(df, week_start, bucket, prefix):
     """Compute the churn data for this week. Note that it takes 10 days
     from the end of this period for all the activity to arrive. This data
     should be from Sunday through Saturday.
     
     df: DataFrame of the dataset relevant to computing the churn
-    week_start: datestring of this time period
-    enable_upload_to_s3: bool that determines whether a gzipped csv file is uploaded"""
+    week_start: datestring of this time period"""
     
     week_start_date = _datetime.strptime(week_start, "%Y%m%d")
     week_end_date = week_start_date + timedelta(6)
@@ -537,7 +536,7 @@ def daterange(start_date, end_date):
         yield (start_date + timedelta(n*7)).strftime("%Y%m%d")
 
 
-def backfill(df, start_date_yyyymmdd, bucket, prefix, enable_upload=False):
+def backfill(df, start_date_yyyymmdd, bucket, prefix):
     """ Import data from a start date to an end date"""
     start_date = snap_to_beginning_of_week(
         _datetime.strptime(start_date_yyyymmdd, "%Y%m%d"), 
@@ -545,7 +544,7 @@ def backfill(df, start_date_yyyymmdd, bucket, prefix, enable_upload=False):
     end_date = _datetime.utcnow() - timedelta(1) # yesterday
     for d in daterange(start_date, end_date):
         try:
-            compute_churn_week(df, d, bucket, prefix, enable_upload)
+            compute_churn_week(df, d, bucket, prefix)
         except Exception as e:
             print e
 ```
@@ -577,12 +576,11 @@ week_start_date = snap_to_beginning_of_week(
 compute_churn_week(df = dataset,
                    week_start = fmt(week_start_date),
                    bucket = bucket,
-                   prefix = prefix,
-                   enable_upload_csv = False)
+                   prefix = prefix)
 ```
 
 ```python
 # 20151101 is world start, but main_summary v3 only goes back to 20160312
 # Uncomment to manually backfill this job
-# backfill(dataset, '20170101', bucket, prefix, False)
+# backfill(dataset, '20170101', bucket, prefix)
 ```
