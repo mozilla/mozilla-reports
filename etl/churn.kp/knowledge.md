@@ -11,7 +11,7 @@ tags:
 - firefox desktop
 - main_summary
 created_at: 2016-03-28 00:00:00
-updated_at: 2017-03-08 10:42:02.552779
+updated_at: 2017-03-22 18:02:55.738244
 tldr: "Compute churn / retention information for unique segments of Firefox \nusers\
   \ acquired during a specific period of time.\n"
 ---
@@ -42,9 +42,6 @@ import ujson as json
 import requests
 from datetime import datetime as _datetime, timedelta, date
 import gzip
-import boto3
-import botocore
-from boto3.s3.transfer import S3Transfer
 from traceback import print_exc
 from pyspark.sql.window import Window
 import pyspark.sql.functions as F
@@ -353,14 +350,8 @@ def convert(d2v, week_start, datum):
     out["good"] = True
     return out
 
-def csv(f):
-    return ",".join([unicode(a) for a in f])
-
 # Build the "effective version" cache:
 d2v = make_d2v(get_release_info())
-
-def get_churn_filename(week_start, week_end):
-    return "churn-{}-{}.by_activity.csv.gz".format(week_start, week_end)
 
 def fmt(d, date_format="%Y%m%d"):
     return _datetime.strftime(d, date_format)
@@ -421,45 +412,6 @@ def get_newest_per_client(df):
         *[F.col(col) for col in df.columns]
     )
     return selectable_by_client.filter(selectable_by_client['row_number'] == 1)
-
-
-def upload_to_s3(df, churn_outfile):
-    client = boto3.client('s3', 'us-west-2')
-    transfer = S3Transfer(client)
-    churn_bucket = "net-mozaws-prod-us-west-2-pipeline-analysis"
-    churn_filepath = "amiyaguchi/churn"
-
-    print "{}: Writing output to {}".format(_datetime.utcnow(), churn_outfile)
-
-    # Write the file out as gzipped csv
-    with gzip.open(churn_outfile, 'wb') as fout:
-        fout.write(",".join(df.columns) + "\n")
-        print "{}: Wrote header to {}".format(_datetime.utcnow(), churn_outfile)
-        records = df.rdd.collect()
-        for r in records:
-            try:
-                fout.write(csv(r))
-                fout.write("\n")
-            except UnicodeEncodeError as e:
-                print("{}: Error writing line: {} // {}"
-                      .format(_datetime.utcnow(), e, r))
-        print "{}: finished writing lines".format(_datetime.utcnow())
-
-    # Now upload it to S3:
-    churn_s3 = "{}/{}".format(churn_filepath, churn_outfile)
-    transfer.upload_file(churn_outfile, churn_bucket, churn_s3,
-                         extra_args={'ACL': 'bucket-owner-full-control'})
-
-    # TODO: Re-enable uploading to the dashboard when cutover happends
-    ENABLE_UPLOAD_DASHBOARD = False
-
-    if ENABLE_UPLOAD_DASHBOARD:
-        # Also upload it to the dashboard:
-        # Update the dashboard file
-        dash_bucket = "net-mozaws-prod-metrics-data"
-        dash_s3_name = "telemetry-churn/{}".format(churn_outfile)
-        transfer.upload_file(churn_outfile, dash_bucket, dash_s3_name,
-                             extra_args={'ACL': 'bucket-owner-full-control'})
 
     
 def compute_churn_week(df, week_start, bucket, prefix, enable_upload_csv=False):
@@ -568,28 +520,6 @@ def compute_churn_week(df, week_start, bucket, prefix, enable_upload_csv=False):
     aggregated = countable.reduceByKey(reduce_func)
 
     records_df = aggregated.map(lambda x: x[0] + x[1]).toDF(record_columns)
-
-    # New jobs will read as parquet, csv files exist for legacy purposes
-    if enable_upload_csv:
-        churn_outfile = get_churn_filename(week_start, week_end)
-        # groupby and aggregate over the original attributes
-        initial_attributes = [
-            'channel', 'geo', 'is_funnelcake',
-            'acquisition_period', 'start_version', 'sync_usage',
-            'current_version', 'current_week', 'is_active'
-        ]
-        agg_columns = ['n_profiles', 'usage_hours', 'sum_squared_usage_hours']
-        upload_df = (
-            records_df
-                .groupby(initial_attributes)
-                .agg(*[F.sum(x).alias(x) for x in agg_columns])
-        )
-        # Don't bother with replacing any csv files that already exist
-        try:
-            upload_to_s3(upload_df, churn_outfile)
-        except botocore.exceptions.ClientError as e:
-            print("File for {} already exists, skipping upload: {}"
-                  .format(churn_outfile, e))
 
     # Write to s3 as parquet, file size is on the order of 40MB. We bump the version
     # number because v1 is the path to the old telemetry-batch-view churn data.
