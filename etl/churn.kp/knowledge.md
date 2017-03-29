@@ -11,7 +11,7 @@ tags:
 - firefox desktop
 - main_summary
 created_at: 2016-03-28 00:00:00
-updated_at: 2017-03-23 09:50:22.610144
+updated_at: 2017-03-30 10:30:42.836705
 tldr: "Compute churn / retention information for unique segments of Firefox \nusers\
   \ acquired during a specific period of time.\n"
 ---
@@ -19,7 +19,9 @@ tldr: "Compute churn / retention information for unique segments of Firefox \nus
 
 Compute churn / retention information for unique segments of Firefox users acquired during a specific period of time. Tracked in [Bug 1226379](https://bugzilla.mozilla.org/show_bug.cgi?id=1226379). The underlying dataset is generated via the [telemetry-batch-view](https://github.com/mozilla/telemetry-batch-view/blob/master/src/main/scala/com/mozilla/telemetry/views/MainSummaryView.scala) code, and is generated once a day.
 
-The aggregated churn data is updated weekly. Due to the client reporting latency, we needs to wait 10 days for the data to stabilize. The report will generate a dataset for the closest sunday before `today - 17 days`. The 17 day figure is calculated by finding the closest day we can aggregate data from (10 days), and then find the closest sunday the week before that (at least 7 days). 
+The aggregated churn data is updated weekly. Due to the client reporting latency, we need to wait 10 days for the data to stabilize. If the date is passed into this report through the environment, it is assumed that the execution date is at least a week greater than the report start date.
+
+For example, if today is `20170323`, then this notebook expects `20170316` in the `environment.date`. This notebook will set the date back 10 days to `20170306`, and then pin the date to the nearest Sunday. This date happens to be a Monday, so the date will be set to `20170305`.
 
 Code is based on the previous [FHR analysis code](https://github.com/mozilla/churn-analysis).
 
@@ -554,7 +556,8 @@ from os import environ
 
 manual = False
 if manual:
-    os.environ['date'] = fmt(_datetime.now())
+    # This sets the start date to the beginning of the churn period
+    os.environ['date'] = fmt(_datetime.now() - timedelta(7))
     os.environ['bucket'] = 'net-mozaws-prod-us-west-2-pipeline-analysis'
     os.environ['prefix'] = 'amiyaguchi/churn/v2'
 
@@ -565,10 +568,10 @@ bucket = environ.get('bucket', 'telemetry-parquet')
 prefix = environ.get('prefix', 'churn/v2')
 
 # If this job is scheduled, we need the input date to lag a total of 
-# 10 days of slack for incoming data + the 7 days used in churn computation, or 17 days
-# from the current date. 
+# 10 days of slack for incoming data. Airflow subtracts 7 days to
+# account for the weekly nature of this report.
 week_start_date = snap_to_beginning_of_week(
-    _datetime.strptime(env_date, "%Y%m%d") - timedelta(17),
+    _datetime.strptime(env_date, "%Y%m%d") - timedelta(10),
     "Sunday")
 ```
 
