@@ -7,7 +7,7 @@ tags:
 - etl
 - csv
 created_at: 2016-03-07 00:00:00
-updated_at: 2017-03-09 14:12:17.825445
+updated_at: 2017-03-29 15:14:41.822591
 tldr: Convert telemetry-parquet/churn to csv
 ---
 # Churn to CSV
@@ -147,7 +147,7 @@ week_start = None
 if env_date:
     # Churn waits 10 days for pings to be sent from the client
     week_start_date = snap_to_beginning_of_week(
-        datetime.strptime(env_date, "%Y%m%d") - timedelta(17),
+        datetime.strptime(env_date, "%Y%m%d") - timedelta(10),
         "Sunday")
     week_start = fmt(week_start_date)
 
