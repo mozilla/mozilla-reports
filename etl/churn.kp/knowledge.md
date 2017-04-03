@@ -11,7 +11,7 @@ tags:
 - firefox desktop
 - main_summary
 created_at: 2016-03-28 00:00:00
-updated_at: 2017-04-11 16:14:14.726138
+updated_at: 2017-04-03 10:29:44.227299
 tldr: "Compute churn / retention information for unique segments of Firefox \nusers\
   \ acquired during a specific period of time.\n"
 ---
@@ -47,6 +47,7 @@ import gzip
 from traceback import print_exc
 from pyspark.sql.window import Window
 import pyspark.sql.functions as F
+from pyspark.sql.types import DoubleType
 from moztelemetry.standards import snap_to_beginning_of_week
 
 bucket = "telemetry-parquet"
@@ -73,7 +74,9 @@ source_columns = [
     "sync_configured",
     "sync_count_desktop",
     "sync_count_mobile",
-    "timestamp"
+    "timestamp",
+    "total_uri_count",
+    "unique_domains_count"
 ]
 
 dataset = df.select(source_columns).withColumnRenamed('app_version', 'version')
@@ -329,6 +332,10 @@ def convert(d2v, week_start, datum):
     out["usage_hours"] = (datum.usage_seconds / SECONDS_IN_HOUR) if datum.usage_seconds is not None else 0.0
     out["squared_usage_hours"] = out["usage_hours"] ** 2
     
+    # d.get does not default to 0, so make sure that its an int here
+    out["total_uri_count"] = datum.total_uri_count or 0
+    out["unique_domains_count"] = datum.unique_domains_count or 0
+    
     # Incoming subsession_start_date looks like "2016-02-22T00:00:00.0-04:00"
     client_date = None
     if datum.subsession_start_date is not None:
@@ -405,7 +412,9 @@ record_columns = [
     'is_active',
     'n_profiles',
     'usage_hours',
-    'sum_squared_usage_hours'
+    'sum_squared_usage_hours',
+    'total_uri_count',
+    'unique_domains_count'
 ]
 
 
@@ -418,7 +427,7 @@ def get_newest_per_client(df):
     )
     return selectable_by_client.filter(selectable_by_client['row_number'] == 1)
 
-    
+
 def compute_churn_week(df, week_start, bucket, prefix):
     """Compute the churn data for this week. Note that it takes 10 days
     from the end of this period for all the activity to arrive. This data
@@ -458,6 +467,9 @@ def compute_churn_week(df, week_start, bucket, prefix):
           .filter(df['subsession_start_date'] >= week_start_hyphenated)
           .filter(df['subsession_start_date'] < week_end_excl)
     )
+    
+    # clean some of the aggregate fields
+    current_week = current_week.na.fill(0, ["total_uri_count", "unique_domains_count"])
 
     # Clamp broken subsession values in the [0, MAX_SUBSESSION_LENGTH] range.
     clamped_subsession = (
@@ -483,7 +495,7 @@ def compute_churn_week(df, week_start, bucket, prefix):
     # Get the newest ping per client and append to original dataframe
     newest_per_client = get_newest_per_client(current_week)
     newest_with_usage = newest_per_client.join(grouped_usage_time, 'client_id', 'inner')
-
+    
     converted = newest_with_usage.rdd.map(lambda x: convert(d2v, week_start, x))
 
     # Don't bother to filter out non-good records - they will appear 
@@ -511,19 +523,36 @@ def compute_churn_week(df, week_start, bucket, prefix):
             ),(
                 1,  # active users 
                 x.get('usage_hours', 0),
-                x.get('squared_usage_hours',0) 
+                x.get('squared_usage_hours',0),
+                x.get('total_uri_count', 0),
+                x.get('unique_domains_count', 0)
             )
         )
     )
 
     def reduce_func(x, y):
-        return (x[0] + y[0], # Sum active users
-                x[1] + y[1], # Sum usage_hours
-                x[2] + y[2]) # Sum squared_usage_hours
-
+        return tuple(map(sum, zip(x, y)))
+    
     aggregated = countable.reduceByKey(reduce_func)
 
     records_df = aggregated.map(lambda x: x[0] + x[1]).toDF(record_columns)
+    
+    # Apply some post-processing for other aggregates (i.e. unique_domains_count). This
+    # needs to be done when you want something other than just a simple sum
+    def average(total, n):
+        if not n:
+            return 0.0
+        return float(total)/n
+    average_udf = F.udf(average, DoubleType())
+    
+    # Create new derived columns and any unecessary ones
+    records_df = (
+        records_df
+            .withColumn('average_unique_domains_count',
+                        average_udf(F.col('unique_domains_count'), F.col('n_profiles')))
+            .drop('unique_domains_count')
+            .withColumnRenamed('average_unique_domains_count', 'unique_domains_count')
+    )
 
     # Write to s3 as parquet, file size is on the order of 40MB. We bump the version
     # number because v1 is the path to the old telemetry-batch-view churn data.
@@ -562,7 +591,7 @@ if manual:
     # This sets the start date to the beginning of the churn period
     os.environ['date'] = fmt(_datetime.now() - timedelta(7))
     os.environ['bucket'] = 'net-mozaws-prod-us-west-2-pipeline-analysis'
-    os.environ['prefix'] = 'amiyaguchi/churn/v2'
+    os.environ['prefix'] = 'amiyaguchi/churn_dev/v2'
 
 env_date = environ.get('date')
 if not env_date:
