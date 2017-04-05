@@ -7,7 +7,7 @@ tags:
 - okr
 - derived dataset
 created_at: 2017-02-08 00:00:00
-updated_at: 2017-02-28 10:06:12.500299
+updated_at: 2017-03-24 11:10:05.989452
 tldr: script to be run daily that contructs the addon_aggregates table in re:dash
 ---
 # Add-ons 2017 OKR Data Collection
@@ -112,7 +112,7 @@ ms = ms.filter(ms.submission_date_s3 == target_date)
 
 These are the aggregations / joins that we **don't** want to do in re:dash.
 
-* The resulting table is one row per distinct client, day, and install type
+* The resulting table is one row per distinct client, day, channel, and install type
   + foreign_install = true -> side-loaded add-on, foreign_install = false ->  self-installed add-on
 * Each client has a static field for profile_creation_date and min_install_day (earliest add-on installation date)
 * Each client has a daily field `user_type`
@@ -136,20 +136,22 @@ default_theme_id = "{972ce4c6-7e08-4474-a285-3208198ce6fd}"
 
 # count of distinct client submission_date, install type
 count_by_client_day = addons\
-  .select(['client_id', 'submission_date_s3',
-        'foreign_install', 'addon_id'])\
+  .select(['client_id', 'submission_date_s3', 'normalized_channel',
+           'foreign_install', 'addon_id'])\
   .distinct()\
-  .groupBy(['client_id', 'submission_date_s3','foreign_install'])\
+  .groupBy(['client_id', 'submission_date_s3','foreign_install', 'normalized_channel'])\
   .count()
 
 # count of clients that have only foreign_installed, only self_installed and both
 user_types = count_by_client_day\
-  .select(['client_id', 'submission_date_s3', bool_to_int('foreign_install').alias('user_type')])\
-  .groupBy(['client_id', 'submission_date_s3'])\
+  .select(['client_id', 'submission_date_s3', 'normalized_channel',
+           bool_to_int('foreign_install').alias('user_type')])\
+  .groupBy(['client_id', 'submission_date_s3', 'normalized_channel'])\
   .sum('user_type')\
   .withColumnRenamed('sum(user_type)', 'user_type')
 
-count_by_client_day = count_by_client_day.join(user_types, on=['client_id', 'submission_date_s3'])
+count_by_client_day = count_by_client_day.join(user_types, 
+                                               on=['client_id', 'submission_date_s3', 'normalized_channel'])
 
 
 # does a client have a custom theme?
@@ -195,10 +197,6 @@ current = optimize_repartition(current, record_size=38)
 current.write.format("parquet")\
   .save('s3://' + dest + '/submission_date_s3={}'.format(target_date), mode='overwrite')
 ```
-    -- Found 59350013 records -- Repartitioning with 9 partitions
-    CPU times: user 240 ms, sys: 60 ms, total: 300 ms
-    Wall time: 10min 20s
-
 
 
 ```python
@@ -214,3 +212,4 @@ current.printSchema()
      |-- has_custom_theme: long (nullable = true)
      |-- n_custom_theme_clients: integer (nullable = false)
      |-- n_clients: integer (nullable = false)
+
