@@ -7,7 +7,7 @@ tags:
 - okr
 - derived dataset
 created_at: 2017-02-08 00:00:00
-updated_at: 2017-03-24 11:10:05.989452
+updated_at: 2017-04-10 15:08:03.885429
 tldr: script to be run daily that contructs the addon_aggregates table in re:dash
 ---
 # Add-ons 2017 OKR Data Collection
@@ -28,6 +28,8 @@ import pyspark.sql.types as st
 import math
 import os
 import datetime as dt
+
+sc.setLogLevel("INFO")
 ```
 
 ```python
@@ -99,7 +101,7 @@ dest = get_dest(bucket="telemetry-parquet", prefix="addons/agg/v1")
 
 ```python
 addons = sqlContext.read.parquet("s3://telemetry-parquet/addons/v2")
-addons = addons.filter(addons.submission_date_s3 ==  target_date) \
+addons = addons.filter(addons.submission_date_s3 == target_date) \
                .filter(addons.is_system == False) \
                .filter(addons.user_disabled == False) \
                .filter(addons.app_disabled == False) \
@@ -123,9 +125,9 @@ These are the aggregations / joins that we **don't** want to do in re:dash.
    * 1  -> has a custom theme
    * -1 -> has default theme
    * 0  -> changed from default to custom on this date
-* To facilitate total population percentages, each submission date has two static fields
-  + n_custom_theme_clients (# distinct clients on that day with a custom theme)
-  + n_clients (# distinct total clients on that date)
+* To facilitate total population percentages, each submission date/channel has two static fields
+  + n_custom_theme_clients (# distinct clients on that day/channel with a custom theme)
+  + n_clients (# distinct total clients on that date/channel)
 
 
 ```python
@@ -134,7 +136,7 @@ These are the aggregations / joins that we **don't** want to do in re:dash.
 default_theme_id = "{972ce4c6-7e08-4474-a285-3208198ce6fd}"
 
 
-# count of distinct client submission_date, install type
+# count of distinct client submission_date, channel and install type
 count_by_client_day = addons\
   .select(['client_id', 'submission_date_s3', 'normalized_channel',
            'foreign_install', 'addon_id'])\
@@ -143,6 +145,7 @@ count_by_client_day = addons\
   .count()
 
 # count of clients that have only foreign_installed, only self_installed and both
+# per day/channel
 user_types = count_by_client_day\
   .select(['client_id', 'submission_date_s3', 'normalized_channel',
            bool_to_int('foreign_install').alias('user_type')])\
@@ -155,12 +158,12 @@ count_by_client_day = count_by_client_day.join(user_types,
 
 
 # does a client have a custom theme?
-# aggregate distinct values on a day, since a client could have
+# aggregate distinct values on a day/channel, since a client could have
 # changed from default to custom
 ms_has_theme = ms.select(\
-   ms.client_id, bool_to_int(ms.active_theme.addon_id != default_theme_id).alias('has_custom_theme'))\
+   ms.client_id, ms.normalized_channel, bool_to_int(ms.active_theme.addon_id != default_theme_id).alias('has_custom_theme'))\
   .distinct()\
-  .groupBy('client_id').sum('has_custom_theme') \
+  .groupBy(['client_id', 'normalized_channel']).sum('has_custom_theme') \
   .withColumnRenamed('sum(has_custom_theme)', 'has_custom_theme')
                
 
@@ -176,33 +179,48 @@ ms_install_days = ms\
 # combine data
 current = count_by_client_day\
   .join(ms_install_days, on='client_id', how='left')\
-  .join(ms_has_theme, on='client_id', how='left')\
+  .join(ms_has_theme, on=['client_id', 'normalized_channel'], how='left')\
   .drop('submission_date_s3')
 
 
-# add total number of distinct clients per day
-# and total number of ditscint clients with a custom theme
-n_clients = ms.select('client_id').distinct().count()
+# add total number of distinct clients per day/channel
+# and total number of distinct clients with a custom theme per day/channel
+# Note that we could see the same client on multiple channels
+# so downstream analysis should be done within channel
+n_clients = ms.select(['client_id', 'normalized_channel']).distinct()\
+               .groupby('normalized_channel').count()\
+               .withColumnRenamed('count', 'n_clients')
+
 n_custom_themes = ms_has_theme\
   .filter(ms_has_theme.has_custom_theme >= 0)\
-  .select('client_id').distinct().count()
-current = current\
-  .withColumn('n_custom_theme_clients', fun.lit(n_custom_themes))\
-  .withColumn('n_clients', fun.lit(n_clients))
+  .select(['client_id', 'normalized_channel']).distinct()\
+  .groupby('normalized_channel').count()\
+  .withColumnRenamed('count', 'n_custom_theme_clients')
 
+current = current.join(n_custom_themes, on='normalized_channel')\
+                 .join(n_clients, on='normalized_channel')
+    
+current = current.withColumn('n_clients', current.n_clients.cast(st.IntegerType()))\
+                 .withColumn('n_custom_theme_clients', current.n_custom_theme_clients.cast(st.IntegerType()))
+    
 # repartition data
-current = optimize_repartition(current, record_size=38)
+current = optimize_repartition(current, record_size=39)
 
 # write to s3
 current.write.format("parquet")\
   .save('s3://' + dest + '/submission_date_s3={}'.format(target_date), mode='overwrite')
 ```
+    -- Found 74733413 records -- Repartitioning with 11 partitions
+    CPU times: user 364 ms, sys: 100 ms, total: 464 ms
+    Wall time: 8min 58s
+
 
 
 ```python
 current.printSchema()
 ```
     root
+     |-- normalized_channel: string (nullable = true)
      |-- client_id: string (nullable = true)
      |-- foreign_install: boolean (nullable = true)
      |-- count: long (nullable = false)
@@ -212,4 +230,3 @@ current.printSchema()
      |-- has_custom_theme: long (nullable = true)
      |-- n_custom_theme_clients: integer (nullable = false)
      |-- n_clients: integer (nullable = false)
-
