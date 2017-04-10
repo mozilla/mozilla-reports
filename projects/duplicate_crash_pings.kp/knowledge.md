@@ -12,7 +12,7 @@ tldr: When the patches landed to dedupe crash pings (bug 1354468 has the list), 
   they work?
 thumbnail: images/output_11_0.png
 ---
-### How many duplicate crash pings are we receiving on Nightly/Aurora from 2017-03-28 - 2017-04-07?
+### How many duplicate crash pings are we receiving on Nightly/Aurora from 2017-02-10 - 2017-04-07?
 
 
 ```python
