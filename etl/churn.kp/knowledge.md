@@ -11,7 +11,7 @@ tags:
 - firefox desktop
 - main_summary
 created_at: 2016-03-28 00:00:00
-updated_at: 2017-04-03 10:29:44.227299
+updated_at: 2017-04-12 12:10:32.330933
 tldr: "Compute churn / retention information for unique segments of Firefox \nusers\
   \ acquired during a specific period of time.\n"
 ---
@@ -332,9 +332,8 @@ def convert(d2v, week_start, datum):
     out["usage_hours"] = (datum.usage_seconds / SECONDS_IN_HOUR) if datum.usage_seconds is not None else 0.0
     out["squared_usage_hours"] = out["usage_hours"] ** 2
     
-    # d.get does not default to 0, so make sure that its an int here
-    out["total_uri_count"] = datum.total_uri_count or 0
-    out["unique_domains_count"] = datum.unique_domains_count or 0
+    out["total_uri_count"] = datum.total_uri_count_per_client
+    out["unique_domains_count"] = datum.average_unique_domains_count_per_client
     
     # Incoming subsession_start_date looks like "2016-02-22T00:00:00.0-04:00"
     client_date = None
@@ -371,20 +370,6 @@ def fmt(d, date_format="%Y%m%d"):
 ### Compute the aggregates
 
 Run the aggregation code, detecting files that are missing.
-
-The fields we want in the output are:
- - channel (appUpdateChannel)
- - geo (bucketed into top 30 countries + "rest of world")
- - is_funnelcake (contains "-cck-"?)
- - acquisition_period (cohort_week)
- - start_version (effective version on profile creation date)
- - sync_usage ("no", "single" or "multiple" devices)
- - current_version (current appVersion)
- - current_week (week)
- - is_active (were the client_ids active this week or not)
- - n_profiles (count of matching client_ids)
- - usage_hours (sum of the per-client subsession lengths, clamped in the [0, MAX_SUBSESSION_LENGTH] range)
- - sum_squared_usage_hours (the sum of squares of the usage hours)
 
 
 ```python
@@ -472,32 +457,60 @@ def compute_churn_week(df, week_start, bucket, prefix):
     current_week = current_week.na.fill(0, ["total_uri_count", "unique_domains_count"])
 
     # Clamp broken subsession values in the [0, MAX_SUBSESSION_LENGTH] range.
-    clamped_subsession = (
-        current_week
-        .select(
-            F.col('client_id'),
-            F.when(
-                F.col('subsession_length') > MAX_SUBSESSION_LENGTH, MAX_SUBSESSION_LENGTH
-            ).otherwise(
-                F.when(F.col('subsession_length') < 0, 0).otherwise(F.col('subsession_length'))
-            ).alias('subsession_length')
-            )
+    clamped_subsession_subquery = (
+        F.when(F.col('subsession_length') > MAX_SUBSESSION_LENGTH,
+               MAX_SUBSESSION_LENGTH)
+        .otherwise(
+            F.when(F.col('subsession_length') < 0, 0)
+            .otherwise(F.col('subsession_length')))
     )
 
-    # Compute the overall usage time for each client by summing the subsession lengths.
-    grouped_usage_time = (
-        clamped_subsession
-            .groupby('client_id')
-            .sum('subsession_length')
-            .withColumnRenamed('sum(subsession_length)', 'usage_seconds')
+    # Compute per client aggregates lost during newest client computation
+    per_client_aggregates = (
+        current_week
+        .select('client_id',
+                'total_uri_count',
+                'unique_domains_count',
+                clamped_subsession_subquery.alias('subsession_length'))
+        .groupby('client_id')
+        .agg(F.sum('subsession_length').alias('usage_seconds'),
+             F.sum('total_uri_count').alias('total_uri_count_per_client'),
+             F.avg('unique_domains_count')
+             .alias('average_unique_domains_count_per_client'))
     )
 
     # Get the newest ping per client and append to original dataframe
     newest_per_client = get_newest_per_client(current_week)
-    newest_with_usage = newest_per_client.join(grouped_usage_time, 'client_id', 'inner')
+    newest_with_usage = newest_per_client.join(per_client_aggregates, 'client_id', 'inner')
     
     converted = newest_with_usage.rdd.map(lambda x: convert(d2v, week_start, x))
 
+        
+    """
+    - channel (appUpdateChannel)
+    - geo (bucketed into top 30 countries + "rest of world")
+    - is_funnelcake (contains "-cck-"?)
+    - acquisition_period (cohort_week)
+    - start_version (effective version on profile creation date)
+    - sync_usage ("no", "single" or "multiple" devices)
+    - current_version (current appVersion)
+    - current_week (week)
+    - source (associated attribution)
+    - medium (associated with attribution)
+    - campaign (associated with attribution)
+    - content (associated with attribution)
+    - distribution_id (funnelcake associated with profile)
+    - default_search_engine
+    - locale
+    - is_active (were the client_ids active this week or not)
+    - n_profiles (count of matching client_ids)
+    - usage_hours (sum of the per-client subsession lengths, 
+            clamped in the [0, MAX_SUBSESSION_LENGTH] range)
+    - sum_squared_usage_hours (the sum of squares of the usage hours)
+    - total_uri_count (sum of per-client uri counts)
+    - unique_domains_count_per_profile (average of the average unique
+             domains per-client)
+    """
     # Don't bother to filter out non-good records - they will appear 
     # as 'unknown' in the output.
     countable = converted.map(
@@ -545,13 +558,16 @@ def compute_churn_week(df, week_start, bucket, prefix):
         return float(total)/n
     average_udf = F.udf(average, DoubleType())
     
-    # Create new derived columns and any unecessary ones
+    # Create new derived columns and drop any unecessary ones
     records_df = (
         records_df
-            .withColumn('average_unique_domains_count',
+            # The total number of unique domains divided by the number of profiles
+            # over a set of dimensions. This should be aggregated using a weighted
+            # mean, i.e. sum(unique_domains_count_per_profile * n_profiles)
+            .withColumn('unique_domains_count_per_profile',
                         average_udf(F.col('unique_domains_count'), F.col('n_profiles')))
+            # This value is meaningless because of overlapping domains between profiles
             .drop('unique_domains_count')
-            .withColumnRenamed('average_unique_domains_count', 'unique_domains_count')
     )
 
     # Write to s3 as parquet, file size is on the order of 40MB. We bump the version
@@ -591,7 +607,7 @@ if manual:
     # This sets the start date to the beginning of the churn period
     os.environ['date'] = fmt(_datetime.now() - timedelta(7))
     os.environ['bucket'] = 'net-mozaws-prod-us-west-2-pipeline-analysis'
-    os.environ['prefix'] = 'amiyaguchi/churn_dev/v2'
+    os.environ['prefix'] = 'amiyaguchi/churn/v2'
 
 env_date = environ.get('date')
 if not env_date:
