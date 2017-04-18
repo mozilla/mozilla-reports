@@ -7,7 +7,7 @@ tags:
 - etl
 - csv
 created_at: 2016-03-07 00:00:00
-updated_at: 2017-03-29 15:14:41.822591
+updated_at: 2017-04-18 15:16:33.998732
 tldr: Convert telemetry-parquet/churn to csv
 ---
 # Churn to CSV
@@ -67,14 +67,9 @@ def collect_and_upload_csv(df, filename, upload_config):
         print("File for {} already exists, skipping upload: {}".format(filename, e))
 
 
-def marginalize_dataframe(df):
+def marginalize_dataframe(df, attributes, aggregates):
     """ Reduce the granularity of the dataset to the original set of attributes.
     The original set of attributes can be found on commit 2de3ef1 of mozilla-reports. """
-    
-    attributes = ['channel', 'geo', 'is_funnelcake',
-                  'acquisition_period', 'start_version', 'sync_usage',
-                  'current_version', 'current_week', 'is_active']
-    aggregates = ['n_profiles', 'usage_hours', 'sum_squared_usage_hours']
     
     return df.groupby(attributes).agg(*[F.sum(x).alias(x) for x in aggregates])
 
@@ -97,16 +92,42 @@ def convert_week(config, week_start=None):
     df = df.where(df.week_start == week_start)
     
     # marginalize the dataframe to the original attributes and upload to s3
-    upload_df = marginalize_dataframe(df)
+    initial_attributes = ['channel', 'geo', 'is_funnelcake',
+                          'acquisition_period', 'start_version', 'sync_usage',
+                          'current_version', 'current_week', 'is_active']
+    initial_aggregates = ['n_profiles', 'usage_hours', 'sum_squared_usage_hours']
+    
+    upload_df = marginalize_dataframe(df, initial_attributes, initial_aggregates)
     filename = "churn-{}-{}.by_activity.csv.gz".format(week_start, week_end)
     collect_and_upload_csv(upload_df, filename, config["uploads"])
+    
+    # Bug 1355988
+    # The size of the data explodes significantly with extra dimensions and is too
+    # large to fit into the driver memory. We can write directly to s3 from a
+    # dataframe.
+    bucket = config['search_cohort']['bucket']
+    prefix = config['search_cohort']['prefix']
+    location = "s3://{}/{}/week_start={}".format(bucket, prefix, week_start)
 
+    print("Saving additional search cohort churn data to {}".format(location))
+
+    search_attributes = [
+        'source', 'medium', 'campaign', 'content',
+        'distribution_id', 'default_search_engine', 'locale'
+    ]
+    attributes = initial_attributes + search_attributes
+    upload_df = marginalize_dataframe(df, attributes, initial_aggregates)
+    upload_df.write.csv(location, header=True, mode='overwrite', compression='gzip')
+    
+    print("Sucessfully finished churn_to_csv")
 ```
 
 ```python
 def assert_valid_config(config):
     """ Assert that the configuration looks correct. """
-    assert set(["source", "uploads"]).issubset(config.keys())
+    # This could be replaced with python schema's
+    assert set(["source", "uploads", "search_cohort"]).issubset(config.keys())
+    assert set(["bucket", "prefix"]).issubset(config['search_cohort'].keys())
     for entry in config["uploads"]:
         assert set(["name", "bucket", "prefix"]).issubset(entry.keys())
 ```
@@ -128,8 +149,13 @@ config = {
             "bucket": "net-mozaws-prod-metrics-data",
             "prefix": "telemetry-churn"
         }
-    ]
+    ],
+    "search_cohort": {
+        "bucket": "net-mozaws-prod-us-west-2-pipeline-analysis",
+        "prefix": "amiyaguchi/churn_csv"
+    }
 }
+assert_valid_config(config)
 
 # Set to True to overwrite the configuration with debugging route
 if False:
@@ -140,6 +166,12 @@ if False:
             "prefix": "amiyaguchi/churn_csv_testing"
         }
     ]
+    config['search_cohort'] = {
+        "bucket": "net-mozaws-prod-us-west-2-pipeline-analysis",
+        "prefix": "amiyaguchi/churn_csv_testing"
+    }
+    assert_valid_config(config)
+    
 
 # check for a date, in the case of a backfill
 env_date = environ.get('date')
@@ -151,6 +183,5 @@ if env_date:
         "Sunday")
     week_start = fmt(week_start_date)
 
-assert_valid_config(config)
 convert_week(config, week_start)
 ```
