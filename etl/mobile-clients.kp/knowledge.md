@@ -6,7 +6,7 @@ tags:
 - mobile
 - etl
 created_at: 2017-02-17 00:00:00
-updated_at: 2017-02-17 15:24:33.852490
+updated_at: 2017-05-01 10:20:04.654007
 tldr: This job basically just takes core pings and puts them in parquet format.
 ---
 
@@ -162,7 +162,7 @@ while day <= end:
         print transformed.first()
 
         s3_output = "s3n://net-mozaws-prod-us-west-2-pipeline-analysis/mobile/mobile_clients"
-        s3_output += "/v1/channel=" + channel + "/submission=" + day.strftime("%Y%m%d") 
+        s3_output += "/v2/channel=" + channel + "/submission=" + day.strftime("%Y%m%d") 
         schema = StructType([
             StructField("clientid", StringType(), False),
             StructField("submissiondate", TimestampType(), False),
@@ -179,8 +179,8 @@ while day <= end:
             StructField("defaultsearch", StringType(), True),
             StructField("distributionid", StringType(), True),
             StructField("experiments", StringType(), True),
-            StructField("defaultNewTabExperience", StringType(), True),
-            StructField("defaultMailClient", StringType(), True),
+            StructField("default_new_tab_experience", StringType(), True),
+            StructField("default_mail_client", StringType(), True),
             StructField("searches", StringType(), True),
             StructField("durations", StringType(), True),
             StructField("sessions", StringType(), True)
