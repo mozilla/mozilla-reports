@@ -7,7 +7,7 @@ tags:
 - okr
 - derived dataset
 created_at: 2017-02-08 00:00:00
-updated_at: 2017-04-10 15:08:03.885429
+updated_at: 2017-05-03 14:17:08.858458
 tldr: script to be run daily that contructs the addon_aggregates table in re:dash
 ---
 # Add-ons 2017 OKR Data Collection
@@ -107,7 +107,7 @@ addons = addons.filter(addons.submission_date_s3 == target_date) \
                .filter(addons.app_disabled == False) \
 
 ms = sqlContext.read.option('mergeSchema', 'true')\
-             .parquet('s3://telemetry-parquet/main_summary/v3')
+             .parquet('s3://telemetry-parquet/main_summary/v4')
 ms = ms.filter(ms.submission_date_s3 == target_date)
 ```
 # Aggregate
@@ -210,23 +210,7 @@ current = optimize_repartition(current, record_size=39)
 current.write.format("parquet")\
   .save('s3://' + dest + '/submission_date_s3={}'.format(target_date), mode='overwrite')
 ```
-    -- Found 74733413 records -- Repartitioning with 11 partitions
-    CPU times: user 364 ms, sys: 100 ms, total: 464 ms
-    Wall time: 8min 58s
-
-
 
 ```python
 current.printSchema()
 ```
-    root
-     |-- normalized_channel: string (nullable = true)
-     |-- client_id: string (nullable = true)
-     |-- foreign_install: boolean (nullable = true)
-     |-- count: long (nullable = false)
-     |-- user_type: long (nullable = true)
-     |-- profile_creation_date: long (nullable = true)
-     |-- min_install_day: integer (nullable = true)
-     |-- has_custom_theme: long (nullable = true)
-     |-- n_custom_theme_clients: integer (nullable = false)
-     |-- n_clients: integer (nullable = false)
