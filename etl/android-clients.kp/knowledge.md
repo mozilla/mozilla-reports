@@ -7,7 +7,7 @@ tags:
 - fennec
 - etl
 created_at: 2017-02-09 00:00:00
-updated_at: 2017-02-17 15:28:55.511039
+updated_at: 2017-05-03 14:31:23.568585
 tldr: This notebook maps Fennec saved_session pings to some useful information about
   clients. This is a 1:1 mapping.
 ---
@@ -149,7 +149,7 @@ while day <= end:
         transformed = subset.map(transform)
 
         s3_output = "s3n://net-mozaws-prod-us-west-2-pipeline-analysis/mobile/android_clients"
-        s3_output += "/v1/channel=" + channel + "/submission=" + day.strftime("%Y%m%d") 
+        s3_output += "/v2/channel=" + channel + "/submission=" + day.strftime("%Y%m%d") 
         schema = StructType([
             StructField("clientid", StringType(), False),
             StructField("profiledate", TimestampType(), True),
@@ -161,11 +161,11 @@ while day <= end:
             StructField("defaultsearch", StringType(), True),
             StructField("device", StringType(), True),
             StructField("arch", StringType(), True),
-            StructField("fennecActivityStreamTopsitesLoaderTimeMs", 
+            StructField("fennec_activity_stream_topsites_loader_time_ms", 
                         ArrayType(IntegerType()), 
                         True
             ),
-            StructField("fennecTopsitesLoaderTimeMs", 
+            StructField("fennec_topsites_loader_time_ms", 
                         ArrayType(IntegerType()), 
                         True
             )
