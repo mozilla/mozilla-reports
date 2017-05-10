@@ -7,7 +7,7 @@ tags:
 - fennec
 - etl
 created_at: 2017-02-09 00:00:00
-updated_at: 2017-05-03 14:31:23.568585
+updated_at: 2017-05-10 11:15:08.445655
 tldr: This notebook maps Fennec saved_session pings to some useful information about
   clients. This is a 1:1 mapping.
 ---
@@ -38,6 +38,9 @@ Transform and sanitize the pings into arrays.
 
 
 ```python
+# bug 1362659 - int values exceeded signed 32 bit range
+MAX_INT = (2**31)-1
+
 def transform(ping):
     # Should not be None since we filter those out.
     clientId = ping["meta/clientId"]
@@ -63,7 +66,8 @@ def transform(ping):
     appVersion = ping["application/version"]
     osVersion = ping["environment/system/os/version"]
     if osVersion is not None:
-        osVersion = int(osVersion)
+        osVersion = int(osVersion) if int(osVersion) <= MAX_INT else None
+            
     locale = ping["environment/settings/locale"]
     
     # Truncate to 32 characters
@@ -88,9 +92,13 @@ def transform(ping):
     
     if as_topsites_loader_time is not None:
         as_topsites_loader_time = map(int, as_topsites_loader_time.tolist())
+        if any([v > MAX_INT for v in as_topsites_loader_time]):
+            as_topsites_loader_time = None
     
     if topsites_loader_time is not None:
         topsites_loader_time = map(int, topsites_loader_time.tolist())
+        if any([v > MAX_INT for v in topsites_loader_time]):
+            topsites_loader_time = None
 
     return [clientId,
             profileDate,
