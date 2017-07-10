@@ -6,7 +6,7 @@ tags:
 - sync
 - etl
 created_at: 2016-11-15 00:00:00
-updated_at: 2017-02-23 11:26:45.796626
+updated_at: 2017-07-10 11:55:58.696486
 tldr: Read, convert, and store sync log data to Parquet form per [bug 1291340](https://bugzilla.mozilla.org/show_bug.cgi?id=1291340).
 ---
 ## Bug 1291340 - Import sync log data
@@ -44,15 +44,14 @@ The sync data on S3 is stored in framed heka format, and is read using the `Data
 
 ```python
 # Read the source data
-schema = ['name', 'prefix']
-target_name = 'sync-metrics'
-target_prefix = 'data'
-sync = Dataset(source_bucket, schema).where(name=target_name).where(prefix=target_prefix)
+schema = []
+target_prefix = 'sync-metrics/data'
+sync = Dataset(source_bucket, schema, prefix=target_prefix)
 
 # The sync data on S3 does not have a proper "date" dimension, but the date is encoded 
 # in the key names themselves.
 # Fetch the summaries and filter the list to the target day.
-summary_prefix = "{}/{}/{}".format(target_name, target_prefix, target_day)
+summary_prefix = "{}/{}".format(target_prefix, target_day)
 sync_summaries = [ s for s in sync.summaries(sc) if s['key'].startswith(summary_prefix) ]
 ```
 ### Custom heka decoder
