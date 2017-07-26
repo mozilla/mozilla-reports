@@ -5,7 +5,7 @@ authors:
 tags:
 - bhr
 created_at: 2017-07-20 00:00:00
-updated_at: 2017-07-20 12:53:10.851138
+updated_at: 2017-07-26 15:02:35.428480
 tldr: Analysis of the correlation between BHR hangs and "Input Lag" hangs.
 thumbnail: images/output_8_1.png
 ---
@@ -16,6 +16,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from moztelemetry import get_pings_properties
 from moztelemetry.dataset import Dataset
+from scipy.stats import linregress
 
 %matplotlib inline
 ```
@@ -23,7 +24,7 @@ from moztelemetry.dataset import Dataset
 ```python
 start_date = (datetime.today() + timedelta(days=-22))
 start_date_str = start_date.strftime("%Y%m%d")
-end_date = (datetime.today() + timedelta(days=-2))
+end_date = (datetime.today() + timedelta(days=-6))
 end_date_str = end_date.strftime("%Y%m%d")
 
 pings = (Dataset.from_source("telemetry")
@@ -43,7 +44,7 @@ subset = get_pings_properties(pings, [
         'payload/threadHangStats',
     ])
 ```
-    fetching 108936.21307MB in 101357 files...
+    fetching 96379.93220MB in 95251 files...
 
 
 This analysis is oriented toward understanding the relationship between BHR data (which can be viewed [here](http://squarewave.github.io/)), and input hang data (the "Input Lag measures [here](https://health.graphics/quantum/)). If for most BHR hangs, we have a corresponding "Input Lag" hang, and vice versa, then that means the stacks we visualize in the BHR dashboard are of high value for bettering our score on the "Input Lag" metric.
@@ -157,7 +158,7 @@ plot_data = np.array([
     [float(x['content_input']) / x['subsession_length'] * 3600. * 1000. for k,x in sorted_result]
 ], np.float32)
 ```
-Let's take a look at the parent numbers over time. If the graphs fit tightly together, that's probably a good indicator that they're closely related.
+Let's take a look at the parent numbers over time to get an intuition for their relationship:
 
 
 ```python
@@ -182,7 +183,7 @@ plt.legend(["bhr", "input"], loc="upper right")
 
 
 
-    <matplotlib.legend.Legend at 0x7fd6e1205410>
+    <matplotlib.legend.Legend at 0x7fa35f3e4890>
 
 
 
@@ -191,7 +192,47 @@ plt.legend(["bhr", "input"], loc="upper right")
 ![png](images/output_8_1.png)
 
 
-The parent's data looks _pretty_ close. How about content's?
+Looks plausibly correlated to me - let's try a scatter plot:
+
+
+```python
+plt.title("Parent Hang Stats")
+plt.ylabel("BHR hangs per kuh")
+plt.xlabel("Input hangs per kuh")
+
+bhr_index = 0
+input_index = 2
+
+max_val = max(np.amax(plot_data[bhr_index]), np.amax(plot_data[input_index]))
+ticks = np.arange(0., max_val, max_val / 10.)
+plt.yticks(ticks)
+plt.xticks(ticks)
+
+
+plt.grid(True)
+
+plt.scatter(plot_data[input_index], plot_data[bhr_index])
+
+slope, intercept, rvalue, pvalue, stderr = linregress(plot_data[input_index], plot_data[bhr_index])
+
+max_x = np.amax(plot_data[input_index])
+plt.plot([0, max_x], [intercept, intercept + max_x * slope], '--')
+rvalue # print the correlation coefficient
+```
+
+
+
+
+    0.71141966513446731
+
+
+
+
+
+![png](images/output_10_1.png)
+
+
+Correlation coefficient of ~0.711, so, moderately correlated. Let's try the content process:
 
 
 ```python
@@ -216,119 +257,259 @@ plt.legend(["bhr", "input"], loc="upper right")
 
 
 
-    <matplotlib.legend.Legend at 0x7fd6e10d9890>
+    <matplotlib.legend.Legend at 0x7fa35d5a0e50>
 
 
 
 
 
-![png](images/output_10_1.png)
-
-
-Much more tightly correlated. There appear to be dates where bhr is above input and vice versa, but on the whole they go up and down together very nicely.
-
-Let's look at the difference between BHR data and input lag data per ping. If they are tightly correlated, we should see the per-ping delta be low. (NOTE: we need to make sure to filter out pings that have no hang data here, since they will create a huge spike at 0 which is probably misleading.)
-
-
-```python
-def has_content_hangs(counts):
-    return counts[1]['content_bhr'] > 0 or counts[1]['content_input'] > 0
-
-def has_parent_hangs(counts):
-    return counts[1]['parent_bhr'] > 0 or counts[1]['parent_input'] > 0
-
-def subtract_content_input(counts):
-    return counts[1]['content_bhr'] - counts[1]['content_input']
-
-def subtract_parent_input(counts):
-    return counts[1]['parent_bhr'] - counts[1]['parent_input']
-
-content_delta_hist = cached.filter(has_content_hangs).map(subtract_content_input).histogram(range(-10,10))
-parent_delta_hist = cached.filter(has_parent_hangs).map(subtract_parent_input).histogram(range(-10,10))
-```
-
-```python
-def draw_histogram(title, hist):
-    plt.title(title)
-
-    plt.xticks(hist[0][:-1])
-    plt.bar(hist[0][:-1], hist[1])
-```
-
-```python
-draw_histogram("Content Per Hang Delta Distribution (bhr - input)", content_delta_hist)
-```
-
-
-![png](images/output_14_0.png)
+![png](images/output_12_1.png)
 
 
 
 ```python
-draw_histogram("Parent Per Hang Delta Distribution (bhr - input)", parent_delta_hist)
-```
+plt.title("Content Hang Stats")
+plt.ylabel("BHR hangs per kuh")
+plt.xlabel("Input hangs per kuh")
 
+bhr_index = 1
+input_index = 3
 
-![png](images/output_15_0.png)
+max_val = max(np.amax(plot_data[bhr_index]), np.amax(plot_data[input_index]))
+ticks = np.arange(0., max_val, max_val / 10.)
+plt.yticks(ticks)
+plt.xticks(ticks)
 
+plt.grid(True)
 
-Not what I was hoping for. 0 is reasonably high on the graph, but -1 and 1 are much higher, indicating that BHR hangs and input lag hangs happen at about the same rate, but not together.
+plt.scatter(plot_data[input_index], plot_data[bhr_index])
 
+slope, intercept, rvalue, pvalue, stderr = linregress(plot_data[input_index], plot_data[bhr_index])
 
-```python
-content_input_count_hist = cached.map(lambda x: x[1]['content_input']).histogram(range(20))
-draw_histogram("Content Input Hangs Distribution", content_input_count_hist)
-```
-
-
-![png](images/output_17_0.png)
-
-
-
-```python
-parent_input_count_hist = cached.map(lambda x: x[1]['parent_input']).histogram(range(20))
-draw_histogram("Parent Input Hangs Distribution", parent_input_count_hist)
-```
-
-
-![png](images/output_18_0.png)
-
-
-Let's take a look at what our most common hang numbers are in the content process.
-
-
-```python
-content_values = cached.map(lambda x: (x[1]['content_input'], x[1]['content_bhr'])).countByValue()
-```
-
-```python
-sorted(content_values.iteritems(), key=lambda x: -x[1])[0:20]
+max_x = np.amax(plot_data[input_index])
+plt.plot([0, max_x], [intercept, intercept + max_x * slope], '--')
+rvalue
 ```
 
 
 
 
-    [((0, 0), 1293344),
-     ((1, 0), 82617),
-     ((0, 1), 60936),
-     ((2, 0), 32277),
-     ((1, 1), 28254),
-     ((0, 2), 17548),
-     ((3, 0), 16279),
-     ((2, 1), 15375),
-     ((4, 0), 9586),
-     ((1, 2), 8831),
-     ((0, 3), 8050),
-     ((2, 2), 7529),
-     ((3, 1), 6637),
-     ((5, 0), 6521),
-     ((3, 2), 5005),
-     ((6, 0), 4702),
-     ((0, 4), 4297),
-     ((1, 3), 3632),
-     ((7, 0), 3480),
-     ((2, 3), 3416)]
+    0.92448071222652162
 
 
 
-Hmm. This looks like having an input lag hang means there was a greater chance of having a BHR hang, and vice versa, but it's very far from being a 1:1. That being said, I don't know how to explain the tightly coupled graph above that shows content hangs by build date, given these numbers.
+
+
+![png](images/output_13_1.png)
+
+
+~0.924. Much more strongly correlated. So it's _plausible_ that BHR hangs are a strong cause of content hangs. They could still be a significant cause of parent hangs, but it seems weaker.
+
+Each data point in the above scatter plots is the sum of hang stats for a given build date. The correlation across build dates for the content process is high. How about across individual pings?
+
+
+```python
+collected = cached.collect()
+plt.title("Content Hang Stats (per ping)")
+plt.ylabel("BHR hangs")
+plt.xlabel("Input hangs")
+
+bhr_index = 1
+input_index = 3
+
+content_filtered = [x for k,x in collected if x['content_bhr'] < 100 and x['content_input'] < 100]
+
+per_ping_data = plot_data = np.array([
+    [x['parent_bhr'] for x in content_filtered],
+    [x['content_bhr'] for x in content_filtered],
+    [x['parent_input'] for x in content_filtered],
+    [x['content_input'] for x in content_filtered]
+], np.int32)
+
+ticks = np.arange(0, 100, 10)
+plt.yticks(ticks)
+plt.xticks(ticks)
+
+plt.grid(True)
+
+plt.scatter(per_ping_data[input_index], per_ping_data[bhr_index])
+
+slope, intercept, rvalue, pvalue, stderr = linregress(per_ping_data[input_index], per_ping_data[bhr_index])
+
+max_x = 10.
+plt.plot([0, max_x], [intercept, intercept + max_x * slope], '--')
+rvalue
+```
+
+
+
+
+    0.41093048863293707
+
+
+
+
+
+![png](images/output_15_1.png)
+
+
+Interesting - the data split out per ping is significantly less correlated than the aggregate data by build date. This might suggest that individual BHR hangs don't seem to cause Input Lag events, which is unfortunate for us. That would imply however that there must be some third cause for the high correlation in the aggregate data.
+
+Let's see if we can observe any strong correlation between BHR data between processes. This should give us a feel for whether there might be any forces external to FF that are influencing the numbers:
+
+
+```python
+plot_data = np.array([
+    [float(x['parent_bhr']) / x['subsession_length'] * 3600. * 1000. for k,x in sorted_result],
+    [float(x['content_bhr']) / x['subsession_length'] * 3600. * 1000. for k,x in sorted_result],
+    [float(x['parent_input']) / x['subsession_length'] * 3600. * 1000. for k,x in sorted_result],
+    [float(x['content_input']) / x['subsession_length'] * 3600. * 1000. for k,x in sorted_result]
+], np.float32)
+```
+
+```python
+plt.title("BHR Stats")
+plt.xlabel("Build date")
+plt.ylabel("Hangs per kuh")
+
+parent_index = 0
+content_index = 1
+
+plt.xticks(range(0, len(sorted_result)))
+max_y = max(np.amax(plot_data[parent_index]), np.amax(plot_data[content_index]))
+plt.yticks(np.arange(0., max_y, max_y / 20.))
+
+plt.grid(True)
+
+plt.plot(range(0, len(sorted_result)), plot_data[parent_index])
+plt.plot(range(0, len(sorted_result)), plot_data[content_index])
+plt.legend(["parent", "content"], loc="upper right")
+```
+
+
+
+
+    <matplotlib.legend.Legend at 0x7fa34abfabd0>
+
+
+
+
+
+![png](images/output_18_1.png)
+
+
+
+```python
+plt.title("BHR Stats")
+plt.ylabel("Parent Input hangs per kuh")
+plt.xlabel("Content Input hangs per kuh")
+
+parent_index = 0
+content_index = 1
+
+max_val = max(np.amax(plot_data[parent_index]), np.amax(plot_data[content_index]))
+ticks = np.arange(0., max_val, max_val / 10.)
+plt.yticks(ticks)
+plt.xticks(ticks)
+
+
+plt.grid(True)
+
+plt.scatter(plot_data[parent_index], plot_data[content_index])
+
+slope, intercept, rvalue, pvalue, stderr = linregress(plot_data[parent_index], plot_data[content_index])
+
+max_x = np.amax(plot_data[parent_index])
+plt.plot([0, max_x], [intercept, intercept + max_x * slope], '--')
+rvalue
+```
+
+
+
+
+    0.61208744161139772
+
+
+
+
+
+![png](images/output_19_1.png)
+
+
+Significantly lower than the correlation between BHR and input lag in the content process.
+
+Let's look at input lag across processes:
+
+
+```python
+plt.title("Input Hang Stats")
+plt.xlabel("Build date")
+plt.ylabel("Hangs per kuh")
+
+parent_index = 2
+content_index = 3
+
+plt.xticks(range(0, len(sorted_result)))
+max_y = max(np.amax(plot_data[parent_index]), np.amax(plot_data[content_index]))
+plt.yticks(np.arange(0., max_y, max_y / 20.))
+
+plt.grid(True)
+
+plt.plot(range(0, len(sorted_result)), plot_data[parent_index])
+plt.plot(range(0, len(sorted_result)), plot_data[content_index])
+plt.legend(["parent", "content"], loc="upper right")
+```
+
+
+
+
+    <matplotlib.legend.Legend at 0x7fa34b21d090>
+
+
+
+
+
+![png](images/output_21_1.png)
+
+
+
+```python
+plt.title("Interprocess Hang Stats (Input)")
+plt.ylabel("Parent Input hangs per kuh")
+plt.xlabel("Content Input hangs per kuh")
+
+parent_index = 2
+content_index = 3
+
+max_val = max(np.amax(plot_data[parent_index]), np.amax(plot_data[content_index]))
+ticks = np.arange(0., max_val, max_val / 10.)
+plt.yticks(ticks)
+plt.xticks(ticks)
+
+
+plt.grid(True)
+
+plt.scatter(plot_data[parent_index], plot_data[content_index])
+
+slope, intercept, rvalue, pvalue, stderr = linregress(plot_data[parent_index], plot_data[content_index])
+
+max_x = np.amax(plot_data[parent_index])
+plt.plot([0, max_x], [intercept, intercept + max_x * slope], '--')
+rvalue
+```
+
+
+
+
+    0.99701789074391722
+
+
+
+
+
+![png](images/output_22_1.png)
+
+
+Extremely high correlation. There's some discussion of this in Bug 1383924. Essentially, the parent process gets all of the content process's events, so it makes sense that there's a good deal of overlap. However, this could help explain why the content process BHR and input lag are so tightly correlated while the parent process's aren't.
+
+In any case, we have some interesting data here, but the biggest unanswered question I have at the end of this is why is the aggregate correlation between BHR and input lag in the content process so high, while the correlation in individual pings is so low?
