@@ -42,13 +42,14 @@ Here is a snapshot of the commands you need to run to upload your own knowledge 
 
 0. Create a new report starting from the "New Report" template available on a newly launched a.t.m.o. cluster.
 1. Download the report on your machine (e.g. `~/Documents/my_post.ipynb`).
-2. `git clone` this knowledge repository.
-3. Set the `$KNOWLEDGE_REPO` environment variable to the location of the knowledge repository.
-4. `knowledge_repo add ~/Documents/my_post.ipynb -p projects/test_project`
-5. `knowledge_repo preview projects/test_project`
-6. `knowledge_repo submit projects/test_project`
-7. Open a PR in GitHub
-8. After it has been reviewed, merge it in to master.
+2. Add yaml style headers to your report as described [here](https://github.com/airbnb/knowledge-repo#introduction).
+3. `git clone` this knowledge repository.
+4. Set the `$KNOWLEDGE_REPO` environment variable to the location of the knowledge repository.
+5. `knowledge_repo add ~/Documents/my_post.ipynb -p projects/test_project`
+6. `knowledge_repo preview projects/test_project`
+7. `knowledge_repo submit projects/test_project`
+8. Open a PR in GitHub
+9. After it has been reviewed, merge it in to master.
 
 ## Technical Details
 
