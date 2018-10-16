@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+<meta charset="utf-8"/>
+<title> Knowledge </title>
+<!-- js includes at the top as post embedded js colliding -->
+<script src="https://reports.telemetry.mozilla.org/static/modules/jquery/jquery.min.js"></script>
+<script src="https://reports.telemetry.mozilla.org/static/modules/tether/js/tether.min.js"></script>
+<script src="https://reports.telemetry.mozilla.org/static/modules/bootstrap/js/bootstrap.min.js"></script>
+<script src="https://reports.telemetry.mozilla.org/static/modules/bootstrap-slider/js/bootstrap-slider.min.js"></script>
+<script src="https://reports.telemetry.mozilla.org/static/modules/typeahead.js/typeahead.bundle.min.js"></script>
+<script src="https://reports.telemetry.mozilla.org/static/modules/handlebars/js/handlebars.js"></script>
+<script src="https://reports.telemetry.mozilla.org/static/js/helpers.js"></script>
+<script src="https://reports.telemetry.mozilla.org/static/modules/select2/js/select2.min.js"></script>
+<script src="https://reports.telemetry.mozilla.org/static/modules/hightlight.pack.js/highlight.pack.js"></script>
+<script src="https://reports.telemetry.mozilla.org/static/modules/marked.js/marked.js"></script>
+<!-- require js is used for plotly, but has a bunch of collisions with other js packages
+             make sure to have it be last js package imported -->
+<script src="https://reports.telemetry.mozilla.org/static/modules/require.js/require.min.js"></script>
+<!--[if lt IE 9]>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/html5shiv/3.6.2/html5shiv.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/es5-shim/2.1.0/es5-shim.min.js"></script>
+        <![endif]-->
+<link href="https://reports.telemetry.mozilla.org/static/modules/bootstrap/css/bootstrap.min.css" rel="stylesheet"/>
+<link href="https://reports.telemetry.mozilla.org/static/modules/bootstrap-slider/css/bootstrap-slider.min.css" rel="stylesheet"/>
+<link href="https://reports.telemetry.mozilla.org/static/css/custom.css" rel="stylesheet" type="text/css"/>
+<link href="https://reports.telemetry.mozilla.org/static/modules/select2/css/select2.min.css" rel="stylesheet" type="text/css"/>
+<link href="https://fonts.googleapis.com/css?family=Lato:400,900|Playfair+Display|Source+Serif+Pro:400,700" rel="stylesheet" type="text/css"/>
+<link href="https://reports.telemetry.mozilla.org/static/images/favicon.png" rel="shortcut icon"/>
+<link href="https://reports.telemetry.mozilla.org/static/css/codehilite-friendly.css" rel="stylesheet"/>
+<style>
+            .spinner {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                margin-left: -50px; /* half width of the spinner gif */
+                margin-top: -50px; /* half height of the spinner gif */
+                text-align:center;
+                z-index:1234;
+                overflow: auto;
+                width: 100px; /* width of the spinner gif */
+                height: 102px; /*hight of the spinner gif +2px to fix IE8 issue */
+            }
+
+            .table {
+              font-size: 14px;
+            }
+
+            .modal-content {
+              max-width: 1024px;
+            }
+
+             
+
+          </style>
+</head>
+<body>
+
+<div class="container page-container">
+<br/>
+<div class="container-fluid">
+<div class="row">
+<div class="col-md-6">
+
+</div>
+<div class="col-md-2">
+</div>
+
+</div>
+<div class="row col-md-12">
+</div>
+</div>
+<div class="container-fluid">
+<div class="row">
+<div class="col-md-12">
+<div id="renderedMarkdown">
+<div class="metadata">
+<h1>update ping validation on Beta</h1>
+<span class="authors"><a href="/feed?authors=dexter">dexter</a></span>
+<span class="date_created">August 18, 2016</span>
+<span class="date_updated">(Last Updated: August 18, 2017)</span>
+<span class="tldr"><p>This notebook verifies that the <code>update</code> ping with <code>reason = ready</code> behaves as expected on Beta.</p></span>
+
+</div>
+<h1 id="validate-update-ping-submissions-on-beta-reason-ready">Validate ‘update’ ping submissions on Beta (<code>reason = ready</code>)</h1>
+<p>This analysis validates the <code>update</code> ping with <code>reason = ready</code>, which was introduced in <a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1120372">bug 1120372</a> and should be sent every time an update is downloaded and ready to be applied. We verified that the ping is behaving correctly <a href="http://reports.telemetry.mozilla.org/post/projects/update_ping_ready_nightly_validation.kp">on Nightly</a>, and we’re going to perform similar validations for Beta:</p>
+<ul>
+<li>the ping is received within a reasonable time after being created;</li>
+<li>we receive one ping per update;</li>
+<li>that the payload looks ok;</li>
+<li>check if the volume of update pings is within the expected range by cross-checking it with the main pings;</li>
+<li>that we don’t receive many duplicates.</li>
+</ul>
+<div class="codehilite"><pre><span></span><span class="kn">import</span> <span class="nn">ujson</span> <span class="kn">as</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="kn">as</span> <span class="nn">plt</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="kn">as</span> <span class="nn">pd</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">plotly.plotly</span> <span class="kn">as</span> <span class="nn">py</span>
+<span class="kn">import</span> <span class="nn">IPython</span>
+
+<span class="kn">from</span> <span class="nn">plotly.graph_objs</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">moztelemetry</span> <span class="kn">import</span> <span class="n">get_pings_properties</span><span class="p">,</span> <span class="n">get_one_ping_per_client</span>
+<span class="kn">from</span> <span class="nn">moztelemetry.dataset</span> <span class="kn">import</span> <span class="n">Dataset</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">timedelta</span>
+<span class="kn">from</span> <span class="nn">email.utils</span> <span class="kn">import</span> <span class="n">parsedate_tz</span><span class="p">,</span> <span class="n">mktime_tz</span><span class="p">,</span> <span class="n">formatdate</span>
+
+<span class="o">%</span><span class="n">matplotlib</span> <span class="n">inline</span>
+<span class="n">IPython</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">pylabtools</span><span class="o">.</span><span class="n">figsize</span><span class="p">(</span><span class="mi">16</span><span class="p">,</span> <span class="mi">7</span><span class="p">)</span>
+</pre></div>
+<p>The <code>update</code> ping landed on the Beta channel on the 8th of August, 2017 (<em>Beta 1</em>). The first <code>update</code> pings should have been sent when updating to <em>Beta 2</em>, which was released on the 11th of August 2017 according to the <a href="https://calendar.google.com/calendar/render?eid=Xzk1aG0ycjM0NmNvajJjOWc2bGozOG9iNTc0cG00YzFnNmNxNjJjcGw2Z3MzMmUzNjZrczY4YzltNnMgbW96aWxsYS5jb21fZGJxODRhbnI5aTh0Y25taGFiYXRzdHY1Y29AZw&amp;ctz=America/Los_Angeles&amp;sf=true&amp;output=xml#eventpage_6">release calendar</a>. However, with <a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1390175">bug 1390175</a>, the <code>update</code> ping started flowing to its own bucket on the 14th of August 2017. In order to have one week of data, fetch pings from the 11th to the 18th of August, 2017, both from the <code>OTHER</code> and the <code>update</code> buckets, then merge them.</p>
+<div class="codehilite"><pre><span></span><span class="n">BETA_BUILDID_MIN</span> <span class="o">=</span> <span class="s2">"20170808000000"</span> <span class="c1"># 56.0b1</span>
+<span class="n">BETA_BUILDID_MAX</span> <span class="o">=</span> <span class="s2">"20170815999999"</span> <span class="c1"># 56.0b3</span>
+
+<span class="n">update_pings_other_bkt</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">from_source</span><span class="p">(</span><span class="s2">"telemetry"</span><span class="p">)</span> \
+    <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">docType</span><span class="o">=</span><span class="s2">"OTHER"</span><span class="p">)</span> \
+    <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">appUpdateChannel</span><span class="o">=</span><span class="s2">"beta"</span><span class="p">)</span> \
+    <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">submissionDate</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="s2">"20170811"</span> <span class="o">&lt;=</span> <span class="n">x</span> <span class="o">&lt;</span> <span class="s2">"20170818"</span><span class="p">)</span> \
+    <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">appBuildId</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">BETA_BUILDID_MIN</span> <span class="o">&lt;=</span> <span class="n">x</span> <span class="o">&lt;</span> <span class="n">BETA_BUILDID_MAX</span><span class="p">)</span> \
+    <span class="o">.</span><span class="n">records</span><span class="p">(</span><span class="n">sc</span><span class="p">,</span> <span class="n">sample</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+
+<span class="n">update_pings_update_bkt</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">from_source</span><span class="p">(</span><span class="s2">"telemetry"</span><span class="p">)</span> \
+    <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">docType</span><span class="o">=</span><span class="s2">"update"</span><span class="p">)</span> \
+    <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">appUpdateChannel</span><span class="o">=</span><span class="s2">"beta"</span><span class="p">)</span> \
+    <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">submissionDate</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="s2">"20170811"</span> <span class="o">&lt;=</span> <span class="n">x</span> <span class="o">&lt;</span> <span class="s2">"20170818"</span><span class="p">)</span> \
+    <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">appBuildId</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">BETA_BUILDID_MIN</span> <span class="o">&lt;=</span> <span class="n">x</span> <span class="o">&lt;</span> <span class="n">BETA_BUILDID_MAX</span><span class="p">)</span> \
+    <span class="o">.</span><span class="n">records</span><span class="p">(</span><span class="n">sc</span><span class="p">,</span> <span class="n">sample</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+</pre></div>
+<div class="codehilite"><pre><span></span>fetching 265.33015MB in 1605 files...
+fetching 248.69387MB in 819 files...
+</pre></div>
+<div class="codehilite"><pre><span></span><span class="c1"># The 'OTHER' bucket is a miscellaneous bucket, it might contain stuff other than the update ping.</span>
+<span class="c1"># Filter them out.</span>
+<span class="n">update_pings_other_bkt</span> <span class="o">=</span> <span class="n">update_pings_other_bkt</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"type"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"update"</span><span class="p">)</span>
+<span class="c1"># Then merge the pings from both buckets.</span>
+<span class="n">update_pings</span> <span class="o">=</span> <span class="n">update_pings_other_bkt</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="n">update_pings_update_bkt</span><span class="p">)</span>
+</pre></div>
+<h3 id="define-some-misc-functions">Define some misc functions</h3>
+<div class="codehilite"><pre><span></span><span class="k">def</span> <span class="nf">pct</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+    <span class="k">return</span> <span class="mf">100.0</span> <span class="o">*</span> <span class="n">a</span> <span class="o">/</span> <span class="n">b</span>
+
+<span class="k">def</span> <span class="nf">dedupe</span><span class="p">(</span><span class="n">pings</span><span class="p">,</span> <span class="n">duping_key</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">pings</span>\
+            <span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="n">duping_key</span><span class="p">],</span> <span class="n">p</span><span class="p">))</span>\
+            <span class="o">.</span><span class="n">reduceByKey</span><span class="p">(</span><span class="k">lambda</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">a</span> <span class="k">if</span> <span class="n">a</span><span class="p">[</span><span class="s2">"meta/Timestamp"</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">b</span><span class="p">[</span><span class="s2">"meta/Timestamp"</span><span class="p">]</span> <span class="k">else</span> <span class="n">b</span><span class="p">)</span>\
+            <span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">pair</span><span class="p">:</span> <span class="n">pair</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+</pre></div>
+<p>Misc functions to plot the CDF of the submission delay.</p>
+<div class="codehilite"><pre><span></span><span class="n">MAX_DELAY_S</span> <span class="o">=</span> <span class="mi">60</span> <span class="o">*</span> <span class="mi">60</span> <span class="o">*</span> <span class="mf">48.0</span>
+<span class="n">HOUR_IN_S</span> <span class="o">=</span> <span class="mi">60</span> <span class="o">*</span> <span class="mf">60.0</span>
+
+<span class="k">def</span> <span class="nf">setup_plot</span><span class="p">(</span><span class="n">title</span><span class="p">,</span> <span class="n">max_x</span><span class="p">,</span> <span class="n">area_border_x</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">area_border_y</span><span class="o">=</span><span class="mf">0.1</span><span class="p">):</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="n">title</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s2">"Delay (hours)"</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s2">"</span><span class="si">% o</span><span class="s2">f pings"</span><span class="p">)</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">xticks</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">max_x</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">yticks</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">y</span><span class="p">:</span> <span class="n">y</span> <span class="o">/</span> <span class="mf">20.0</span><span class="p">,</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">21</span><span class="p">,</span> <span class="mi">1</span><span class="p">)))</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">ylim</span><span class="p">(</span><span class="mf">0.0</span> <span class="o">-</span> <span class="n">area_border_y</span><span class="p">,</span> <span class="mf">1.0</span> <span class="o">+</span> <span class="n">area_border_y</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">xlim</span><span class="p">(</span><span class="mf">0.0</span> <span class="o">-</span> <span class="n">area_border_x</span><span class="p">,</span> <span class="n">max_x</span> <span class="o">+</span> <span class="n">area_border_x</span><span class="p">)</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">plot_cdf</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="n">sortd</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+    <span class="n">ys</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">sortd</span><span class="p">))</span><span class="o">/</span><span class="nb">float</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">sortd</span><span class="p">))</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">sortd</span><span class="p">,</span> <span class="n">ys</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">calculate_submission_delay</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+    <span class="n">created</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">fromtimestamp</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s2">"meta/creationTimestamp"</span><span class="p">]</span> <span class="o">/</span> <span class="mf">1000.0</span> <span class="o">/</span> <span class="mf">1000.0</span> <span class="o">/</span> <span class="mf">1000.0</span><span class="p">)</span>
+    <span class="n">received</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">fromtimestamp</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s2">"meta/Timestamp"</span><span class="p">]</span> <span class="o">/</span> <span class="mf">1000.0</span> <span class="o">/</span> <span class="mf">1000.0</span> <span class="o">/</span> <span class="mf">1000.0</span><span class="p">)</span>
+    <span class="n">sent</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">fromtimestamp</span><span class="p">(</span><span class="n">mktime_tz</span><span class="p">(</span><span class="n">parsedate_tz</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s2">"meta/Date"</span><span class="p">])))</span> <span class="k">if</span> <span class="n">p</span><span class="p">[</span><span class="s2">"meta/Date"</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="k">else</span> <span class="n">received</span>
+    <span class="n">clock_skew</span> <span class="o">=</span> <span class="n">received</span> <span class="o">-</span> <span class="n">sent</span>
+
+    <span class="k">return</span> <span class="p">(</span><span class="n">received</span> <span class="o">-</span> <span class="n">created</span> <span class="o">-</span> <span class="n">clock_skew</span><span class="p">)</span><span class="o">.</span><span class="n">total_seconds</span><span class="p">()</span>
+</pre></div>
+<h3 id="validate-the-ping-payload">Validate the ping payload</h3>
+<p>Check that the payload section contains the right entries with consistent values.</p>
+<div class="codehilite"><pre><span></span><span class="n">subset</span> <span class="o">=</span> <span class="n">get_pings_properties</span><span class="p">(</span><span class="n">update_pings</span><span class="p">,</span> <span class="p">[</span><span class="s2">"id"</span><span class="p">,</span>
+                                             <span class="s2">"clientId"</span><span class="p">,</span>
+                                             <span class="s2">"meta/creationTimestamp"</span><span class="p">,</span>
+                                             <span class="s2">"meta/Date"</span><span class="p">,</span>
+                                             <span class="s2">"meta/Timestamp"</span><span class="p">,</span>
+                                             <span class="s2">"application/buildId"</span><span class="p">,</span>
+                                             <span class="s2">"application/channel"</span><span class="p">,</span>
+                                             <span class="s2">"application/version"</span><span class="p">,</span>
+                                             <span class="s2">"environment/system/os/name"</span><span class="p">,</span>
+                                             <span class="s2">"payload/reason"</span><span class="p">,</span>
+                                             <span class="s2">"payload/targetBuildId"</span><span class="p">,</span>
+                                             <span class="s2">"payload/targetChannel"</span><span class="p">,</span>
+                                             <span class="s2">"payload/targetVersion"</span><span class="p">])</span>
+
+<span class="n">ping_count</span> <span class="o">=</span> <span class="n">subset</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
+</pre></div>
+<p>Quantify the percentage of duplicate pings we’re receiving. We don’t expect this value to be greater than ~1%, which is the amount we usually get from <code>main</code> and <code>crash</code>: as a rule of thumb, we threat anything less than 1% as <em>probably</em> well behaving.</p>
+<div class="codehilite"><pre><span></span><span class="n">deduped_subset</span> <span class="o">=</span> <span class="n">dedupe</span><span class="p">(</span><span class="n">subset</span><span class="p">,</span> <span class="s2">"id"</span><span class="p">)</span>
+<span class="n">deduped_count</span> <span class="o">=</span> <span class="n">deduped_subset</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
+<span class="k">print</span><span class="p">(</span><span class="s2">"Percentage of duplicate pings: {:.3f}"</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="mf">100.0</span> <span class="o">-</span> <span class="n">pct</span><span class="p">(</span><span class="n">deduped_count</span><span class="p">,</span> <span class="n">ping_count</span><span class="p">)))</span>
+</pre></div>
+<div class="codehilite"><pre><span></span>Percentage of duplicate pings: 0.271
+</pre></div>
+<p>The percentage of duplicate pings is within the expected range. Move on and verify the payload of the <code>update</code> pings.</p>
+<div class="codehilite"><pre><span></span><span class="k">def</span> <span class="nf">validate_update_payload</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+    <span class="n">PAYLOAD_KEYS</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="s2">"payload/reason"</span><span class="p">,</span>
+        <span class="s2">"payload/targetBuildId"</span><span class="p">,</span>
+        <span class="s2">"payload/targetChannel"</span><span class="p">,</span>
+        <span class="s2">"payload/targetVersion"</span>
+    <span class="p">]</span>
+
+    <span class="c1"># All the payload keys needs to be strings.</span>
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">PAYLOAD_KEYS</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">),</span> <span class="nb">basestring</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">(</span><span class="s2">"'{}' is not a string"</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">k</span><span class="p">),</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># We only expect "reason" = ready.</span>
+    <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"payload/reason"</span><span class="p">)</span> <span class="o">!=</span> <span class="s2">"ready"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="s2">"Unexpected 'reason' {}"</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"payload/reason"</span><span class="p">),</span> <span class="mi">1</span><span class="p">))</span>
+
+    <span class="c1"># For Beta, the target channel should be the same as the</span>
+    <span class="c1"># application channel.</span>
+    <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"payload/targetChannel"</span><span class="p">)</span> <span class="o">!=</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"application/channel"</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="s2">"Target channel mismatch: expected {} got {}"</span>\
+                <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"payload/targetChannel"</span><span class="p">),</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"application/channel"</span><span class="p">)),</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># The target buildId must be greater than the application build id.</span>
+    <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"payload/targetBuildId"</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"application/buildId"</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="s2">"Target buildId mismatch: {} must be more recent than {}"</span>\
+                <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"payload/targetBuildId"</span><span class="p">),</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"application/buildId"</span><span class="p">)),</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="p">(</span><span class="s2">"Ok"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+<span class="n">validation_results</span> <span class="o">=</span> <span class="n">deduped_subset</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">validate_update_payload</span><span class="p">)</span><span class="o">.</span><span class="n">countByKey</span><span class="p">()</span>
+<span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">validation_results</span><span class="o">.</span><span class="n">iteritems</span><span class="p">()):</span>
+    <span class="k">if</span> <span class="s2">"channel mismatch"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">k</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">"{}:</span><span class="se">\t</span><span class="s2">{:.3f}%"</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">pct</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">ping_count</span><span class="p">)))</span>
+
+<span class="c1"># We are not sure if we can or cannot disclose channel ratios. Let's be safe</span>
+<span class="c1"># and aggregate them.</span>
+<span class="n">channel_mismatch_ratios</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">([(</span><span class="n">k</span><span class="p">,</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span><span class="n">v</span> <span class="ow">in</span> <span class="n">validation_results</span><span class="o">.</span><span class="n">iteritems</span><span class="p">()</span> <span class="k">if</span> <span class="s2">"channel mismatch"</span> <span class="ow">in</span> <span class="n">k</span><span class="p">])</span>
+<span class="n">total_channel_mismatch</span> <span class="o">=</span> <span class="n">pct</span><span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">channel_mismatch_ratios</span><span class="o">.</span><span class="n">values</span><span class="p">()),</span> <span class="n">ping_count</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">channel_mismatch_ratios</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+    <span class="k">print</span><span class="p">(</span><span class="s2">"{}"</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">k</span><span class="p">))</span>
+<span class="k">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">Total channel mismatch:</span><span class="se">\t</span><span class="s2">{:.3f}%"</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">total_channel_mismatch</span><span class="p">))</span>
+</pre></div>
+<div class="codehilite"><pre><span></span><span class="n">Ok</span><span class="o">:</span> <span class="mf">99.454</span><span class="o">%</span>
+<span class="n">Target</span> <span class="n">buildId</span> <span class="n">mismatch</span><span class="o">:</span> <span class="mi">20170808170225</span> <span class="n">must</span> <span class="n">be</span> <span class="n">more</span> <span class="n">recent</span> <span class="n">than</span> <span class="mi">20170810180547</span><span class="o">:</span>    <span class="mf">0.002</span><span class="o">%</span>
+<span class="n">Target</span> <span class="n">buildId</span> <span class="n">mismatch</span><span class="o">:</span> <span class="mi">20170810180547</span> <span class="n">must</span> <span class="n">be</span> <span class="n">more</span> <span class="n">recent</span> <span class="n">than</span> <span class="mi">20170815141045</span><span class="o">:</span>    <span class="mf">0.004</span><span class="o">%</span>
+<span class="n">Target</span> <span class="n">channel</span> <span class="n">mismatch</span><span class="o">:</span> <span class="n">expected</span> <span class="n">beta</span><span class="o">-</span><span class="n">cck</span><span class="o">-</span><span class="n">mozilla14</span> <span class="n">got</span> <span class="n">beta</span>
+<span class="n">Target</span> <span class="n">channel</span> <span class="n">mismatch</span><span class="o">:</span> <span class="n">expected</span> <span class="n">beta</span><span class="o">-</span><span class="n">cck</span><span class="o">-</span><span class="n">mozilla101</span> <span class="n">got</span> <span class="n">beta</span>
+<span class="n">Target</span> <span class="n">channel</span> <span class="n">mismatch</span><span class="o">:</span> <span class="n">expected</span> <span class="n">beta</span><span class="o">-</span><span class="n">cck</span><span class="o">-</span><span class="n">mozilla</span><span class="o">-</span><span class="n">EMEfree</span> <span class="n">got</span> <span class="n">beta</span>
+<span class="n">Target</span> <span class="n">channel</span> <span class="n">mismatch</span><span class="o">:</span> <span class="n">expected</span> <span class="n">beta</span><span class="o">-</span><span class="n">cck</span><span class="o">-</span><span class="n">mozilla15</span> <span class="n">got</span> <span class="n">beta</span>
+<span class="n">Target</span> <span class="n">channel</span> <span class="n">mismatch</span><span class="o">:</span> <span class="n">expected</span> <span class="n">beta</span><span class="o">-</span><span class="n">cck</span><span class="o">-</span><span class="n">yahooid</span> <span class="n">got</span> <span class="n">beta</span>
+<span class="n">Target</span> <span class="n">channel</span> <span class="n">mismatch</span><span class="o">:</span> <span class="n">expected</span> <span class="n">beta</span><span class="o">-</span><span class="n">cck</span><span class="o">-</span><span class="n">mozilla111</span> <span class="n">got</span> <span class="n">beta</span>
+<span class="n">Target</span> <span class="n">channel</span> <span class="n">mismatch</span><span class="o">:</span> <span class="n">expected</span> <span class="n">beta</span><span class="o">-</span><span class="n">cck</span><span class="o">-</span><span class="n">mozilla19</span> <span class="n">got</span> <span class="n">beta</span>
+<span class="n">Target</span> <span class="n">channel</span> <span class="n">mismatch</span><span class="o">:</span> <span class="n">expected</span> <span class="n">beta</span><span class="o">-</span><span class="n">cck</span><span class="o">-</span><span class="n">seznam</span> <span class="n">got</span> <span class="n">beta</span>
+<span class="n">Target</span> <span class="n">channel</span> <span class="n">mismatch</span><span class="o">:</span> <span class="n">expected</span> <span class="n">beta</span><span class="o">-</span><span class="n">cck</span><span class="o">-</span><span class="n">yahoomy</span> <span class="n">got</span> <span class="n">beta</span>
+<span class="n">Target</span> <span class="n">channel</span> <span class="n">mismatch</span><span class="o">:</span> <span class="n">expected</span> <span class="n">beta</span><span class="o">-</span><span class="n">cck</span><span class="o">-</span><span class="n">bing</span> <span class="n">got</span> <span class="n">beta</span>
+<span class="n">Target</span> <span class="n">channel</span> <span class="n">mismatch</span><span class="o">:</span> <span class="n">expected</span> <span class="n">beta</span><span class="o">-</span><span class="n">cck</span><span class="o">-</span><span class="n">mozillaonline</span> <span class="n">got</span> <span class="n">beta</span>
+<span class="n">Target</span> <span class="n">channel</span> <span class="n">mismatch</span><span class="o">:</span> <span class="n">expected</span> <span class="n">beta</span><span class="o">-</span><span class="n">cck</span><span class="o">-</span><span class="n">mozilla26</span> <span class="n">got</span> <span class="n">beta</span>
+<span class="n">Target</span> <span class="n">channel</span> <span class="n">mismatch</span><span class="o">:</span> <span class="n">expected</span> <span class="n">beta</span><span class="o">-</span><span class="n">cck</span><span class="o">-</span><span class="n">mozilla12</span> <span class="n">got</span> <span class="n">beta</span>
+<span class="n">Target</span> <span class="n">channel</span> <span class="n">mismatch</span><span class="o">:</span> <span class="n">expected</span> <span class="n">beta</span><span class="o">-</span><span class="n">cck</span><span class="o">-</span><span class="n">mozilla</span><span class="o">-</span><span class="n">ironsource</span><span class="o">-</span><span class="mi">001</span> <span class="n">got</span> <span class="n">beta</span>
+<span class="n">Target</span> <span class="n">channel</span> <span class="n">mismatch</span><span class="o">:</span> <span class="n">expected</span> <span class="n">beta</span><span class="o">-</span><span class="n">cck</span><span class="o">-</span><span class="n">yandex</span> <span class="n">got</span> <span class="n">beta</span>
+<span class="n">Target</span> <span class="n">channel</span> <span class="n">mismatch</span><span class="o">:</span> <span class="n">expected</span> <span class="n">beta</span><span class="o">-</span><span class="n">cck</span><span class="o">-</span><span class="n">yahoocfk</span> <span class="n">got</span> <span class="n">beta</span>
+<span class="n">Target</span> <span class="n">channel</span> <span class="n">mismatch</span><span class="o">:</span> <span class="n">expected</span> <span class="n">beta</span><span class="o">-</span><span class="n">cck</span><span class="o">-</span><span class="n">yahooca</span> <span class="n">got</span> <span class="n">beta</span>
+<span class="n">Target</span> <span class="n">channel</span> <span class="n">mismatch</span><span class="o">:</span> <span class="n">expected</span> <span class="n">beta</span><span class="o">-</span><span class="n">cck</span><span class="o">-</span><span class="n">aol</span> <span class="n">got</span> <span class="n">beta</span>
+<span class="n">Target</span> <span class="n">channel</span> <span class="n">mismatch</span><span class="o">:</span> <span class="n">expected</span> <span class="n">beta</span><span class="o">-</span><span class="n">cck</span><span class="o">-</span><span class="n">mozilla20</span> <span class="n">got</span> <span class="n">beta</span>
+<span class="n">Target</span> <span class="n">channel</span> <span class="n">mismatch</span><span class="o">:</span> <span class="n">expected</span> <span class="n">beta</span><span class="o">-</span><span class="n">cck</span><span class="o">-</span><span class="n">euballot</span> <span class="n">got</span> <span class="n">beta</span>
+
+<span class="n">Total</span> <span class="n">channel</span> <span class="n">mismatch</span><span class="o">:</span> <span class="mf">0.269</span><span class="o">%</span>
+</pre></div>
+<p>The vast majority of the data in the payload seems reasonable (99.45%).</p>
+<p>However, a handful of <code>update</code> pings are reporting a <code>targetBuildId</code> which is older than the current build reported by the ping’s environment: this is unexpected, as the the target build id must be always greater than the current one. After discussing this with the <em>update team</em>, it seems like this could either be due to channel weirdness or to the customization applied by the <a href="https://mike.kaply.com/cck2/">CCK tool</a>. Additionally, some pings are reporting a <code>targetChannel</code> different than the one in the environment: this is definitely due to the CCK tool, given the <em>cck</em> entry in the channel name. These issues do not represent a problem, as most of the data is correct and their volume is fairly low.</p>
+<h2 id="check-that-we-receive-one-ping-per-client-and-target-update">Check that we receive one ping per client and target update</h2>
+<p>For each ping, build a key with the client id and the target update details. Since we expect to have exactly one ping for each update bundle marked as <em>ready</em>, we don’t expect duplicate keys.</p>
+<div class="codehilite"><pre><span></span><span class="n">update_dupes</span> <span class="o">=</span> <span class="n">deduped_subset</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="p">((</span><span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"clientId"</span><span class="p">),</span>
+                                              <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"payload/targetChannel"</span><span class="p">),</span>
+                                              <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"payload/targetVersion"</span><span class="p">),</span>
+                                              <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"payload/targetBuildId"</span><span class="p">)),</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">countByKey</span><span class="p">()</span>
+
+<span class="k">print</span><span class="p">(</span><span class="s2">"Percentage of pings related to the same update (for the same client):</span><span class="se">\t</span><span class="s2">{:.3f}%"</span>\
+      <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">pct</span><span class="p">(</span><span class="nb">sum</span><span class="p">([</span><span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">update_dupes</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">if</span> <span class="n">v</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">]),</span> <span class="n">deduped_count</span><span class="p">)))</span>
+</pre></div>
+<div class="codehilite"><pre><span></span>Percentage of pings related to the same update (for the same client):   3.598%
+</pre></div>
+<p>We’re receiving <code>update</code> pings with different <code>documentId</code> related to the same target update bundle, for some clients. The 3.59% is slightly higher than the one we <a href="http://reports.telemetry.mozilla.org/post/projects/update_ping_ready_nightly_validation.kp#check-that-we-receive-one-ping-per-client-and-target-update">saw on Nightly</a>, 1.74%. One possible reason for this could be users having multiple copies of Firefox installed on their machine. Let’s see if that’s the case.</p>
+<div class="codehilite"><pre><span></span><span class="n">clientIds_sending_dupes</span> <span class="o">=</span> <span class="p">[</span><span class="n">k</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">update_dupes</span><span class="o">.</span><span class="n">iteritems</span><span class="p">()</span> <span class="k">if</span> <span class="n">v</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">]</span>
+
+<span class="k">def</span> <span class="nf">check_same_original_build</span><span class="p">(</span><span class="n">ping_list</span><span class="p">):</span>
+    <span class="c1"># Build a "unique" identifier for the build by</span>
+    <span class="c1"># concatenating the buildId, channel and version.</span>
+    <span class="n">unique_build_ids</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="s2">"{}{}{}"</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"application/buildId"</span><span class="p">),</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"application/channel"</span><span class="p">),</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"application/version"</span><span class="p">))</span>\
+        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">ping_list</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="p">]</span>
+
+    <span class="c1"># Remove the duplicates and return True if all the pings came</span>
+    <span class="c1"># from the same build.</span>
+    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">unique_build_ids</span><span class="p">))</span> <span class="o">&lt;</span> <span class="mi">2</span>
+
+<span class="c1"># Count how many duplicates come from the same builds and how many come from</span>
+<span class="c1"># different original builds.</span>
+<span class="n">original_builds_same</span> <span class="o">=</span>\
+    <span class="n">deduped_subset</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"clientId"</span><span class="p">)</span> <span class="ow">in</span> <span class="n">clientIds_sending_dupes</span><span class="p">)</span>\
+                  <span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="p">((</span><span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"clientId"</span><span class="p">),</span>
+                                   <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"payload/targetChannel"</span><span class="p">),</span>
+                                   <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"payload/targetVersion"</span><span class="p">),</span>
+                                   <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"payload/targetBuildId"</span><span class="p">)),</span> <span class="p">[</span><span class="n">p</span><span class="p">]))</span>\
+                  <span class="o">.</span><span class="n">reduceByKey</span><span class="p">(</span><span class="k">lambda</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span><span class="p">)</span>\
+                  <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">)</span>\
+                  <span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">check_same_original_build</span><span class="p">)</span><span class="o">.</span><span class="n">countByValue</span><span class="p">()</span>
+
+<span class="k">print</span><span class="p">(</span><span class="s2">"Original builds are identical:</span><span class="se">\t</span><span class="s2">{:.3f}%"</span>\
+      <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">pct</span><span class="p">(</span><span class="n">original_builds_same</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">True</span><span class="p">),</span> <span class="nb">sum</span><span class="p">(</span><span class="n">original_builds_same</span><span class="o">.</span><span class="n">values</span><span class="p">()))))</span>
+<span class="k">print</span><span class="p">(</span><span class="s2">"Original builds are different:</span><span class="se">\t</span><span class="s2">{:.3f}%"</span>\
+      <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">pct</span><span class="p">(</span><span class="n">original_builds_same</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">False</span><span class="p">),</span> <span class="nb">sum</span><span class="p">(</span><span class="n">original_builds_same</span><span class="o">.</span><span class="n">values</span><span class="p">()))))</span>
+</pre></div>
+<div class="codehilite"><pre><span></span>Original builds are identical:  97.293%
+Original builds are different:  2.707%
+</pre></div>
+<p>The data shows that the <code>update</code> pings with the same target version are not necessarily coming from the same profile being used on different Firefox builds/installation: most of them are, but not all of them. After discussing this with the <em>update team</em>, it turns out that this can be explained by updates failing to apply: for certain classes of errors, we download the update blob again and thus send a new <code>update</code> ping with the same target version. This problem shows up in the <a href="https://telemetry.mozilla.org/update-orphaning/">update orphaning</a> dashboard as well but, unfortunately, it only reports Release data.</p>
+<h2 id="validate-the-submission-delay">Validate the submission delay</h2>
+<div class="codehilite"><pre><span></span><span class="n">delays</span> <span class="o">=</span> <span class="n">deduped_subset</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">calculate_submission_delay</span><span class="p">(</span><span class="n">p</span><span class="p">))</span>
+</pre></div>
+<div class="codehilite"><pre><span></span><span class="n">MAX_DELAY_S</span> <span class="o">=</span> <span class="mi">60</span> <span class="o">*</span> <span class="mi">60</span> <span class="o">*</span> <span class="mf">48.0</span>
+<span class="n">setup_plot</span><span class="p">(</span><span class="s2">"'update' ('ready') ping submission delay CDF"</span><span class="p">,</span>
+           <span class="n">MAX_DELAY_S</span> <span class="o">/</span> <span class="n">HOUR_IN_S</span><span class="p">,</span> <span class="n">area_border_x</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+
+<span class="n">plot_cdf</span><span class="p">(</span><span class="n">delays</span>\
+         <span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">d</span><span class="p">:</span> <span class="n">d</span> <span class="o">/</span> <span class="n">HOUR_IN_S</span> <span class="k">if</span> <span class="n">d</span> <span class="o">&lt;</span> <span class="n">MAX_DELAY_S</span> <span class="k">else</span> <span class="n">MAX_DELAY_S</span> <span class="o">/</span> <span class="n">HOUR_IN_S</span><span class="p">)</span>\
+         <span class="o">.</span><span class="n">collect</span><span class="p">(),</span> <span class="n">label</span><span class="o">=</span><span class="s2">"CDF"</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s2">"solid"</span><span class="p">)</span>
+
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+<p><img alt="png" src="data:image/png;base64, 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"/></p>
+<p>Almost all of the <code>update</code> ping are submitted within an hour from the update being ready.</p>
+<h2 id="make-sure-that-the-volume-of-incoming-update-pings-is-reasonable">Make sure that the volume of incoming <code>update</code> pings is reasonable</h2>
+<p>This is a tricky one. The <code>update</code> ping with <code>reason = "ready"</code> is sent as soon as an update package is downloaded, verified and deemed ready to be applied. However, nothing guarantees that the update is immediately (or ever) applied. To check if the volume of <code>update</code> pings is in the ballpark, we can:</p>
+<ol>
+<li>Get a list of client ids for a specific target update build id of 56.0 Beta 2, ‘20170810xxxxxx’.</li>
+<li>Get the <code>main-ping</code> for that version of Firefox.</li>
+<li>Check how many clients from the list at (1) are in the list at (2).</li>
+</ol>
+<p><strong>Step 1</strong> - Get the list of client ids updating to build ‘20170810xxxxxx’</p>
+<div class="codehilite"><pre><span></span><span class="n">TARGET_BUILDID_MIN</span> <span class="o">=</span> <span class="s1">'20170810000000'</span>
+<span class="n">TARGET_BUILDID_MAX</span> <span class="o">=</span> <span class="s1">'20170810999999'</span>
+
+<span class="n">update_candidates</span> <span class="o">=</span>\
+    <span class="n">deduped_subset</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">TARGET_BUILDID_MIN</span> <span class="o">&lt;=</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"payload/targetBuildId"</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">TARGET_BUILDID_MAX</span><span class="p">)</span>
+<span class="n">update_candidates_clientIds</span> <span class="o">=</span> <span class="n">dedupe</span><span class="p">(</span><span class="n">update_candidates</span><span class="p">,</span> <span class="s2">"clientId"</span><span class="p">)</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"clientId"</span><span class="p">))</span>
+<span class="n">candidates_count</span> <span class="o">=</span> <span class="n">update_candidates_clientIds</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
+</pre></div>
+<p><strong>Step 2</strong> - Get the <code>main-ping</code> from that Beta build and extract the list of client ids.</p>
+<div class="codehilite"><pre><span></span><span class="n">updated_main_pings</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">from_source</span><span class="p">(</span><span class="s2">"telemetry"</span><span class="p">)</span> \
+    <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">docType</span><span class="o">=</span><span class="s2">"main"</span><span class="p">)</span> \
+    <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">appUpdateChannel</span><span class="o">=</span><span class="s2">"beta"</span><span class="p">)</span> \
+    <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">submissionDate</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="s2">"20170811"</span> <span class="o">&lt;=</span> <span class="n">x</span> <span class="o">&lt;</span> <span class="s2">"20170818"</span><span class="p">)</span> \
+    <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">appBuildId</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">TARGET_BUILDID_MIN</span> <span class="o">&lt;=</span> <span class="n">x</span> <span class="o">&lt;=</span> <span class="n">TARGET_BUILDID_MAX</span><span class="p">)</span> \
+    <span class="o">.</span><span class="n">records</span><span class="p">(</span><span class="n">sc</span><span class="p">,</span> <span class="n">sample</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+</pre></div>
+<div class="codehilite"><pre><span></span>fetching 198117.80319MB in 1364 files...
+</pre></div>
+<p>We just need the client ids and a few other fields to dedupe.</p>
+<div class="codehilite"><pre><span></span><span class="n">subset_main</span> <span class="o">=</span> <span class="n">get_pings_properties</span><span class="p">(</span><span class="n">updated_main_pings</span><span class="p">,</span> <span class="p">[</span><span class="s2">"id"</span><span class="p">,</span>
+                                                        <span class="s2">"clientId"</span><span class="p">,</span>
+                                                        <span class="s2">"meta/Timestamp"</span><span class="p">,</span>
+                                                        <span class="s2">"application/buildId"</span><span class="p">,</span>
+                                                        <span class="s2">"application/channel"</span><span class="p">,</span>
+                                                        <span class="s2">"application/version"</span><span class="p">])</span>
+</pre></div>
+<p>Start by deduping by document id. After that, only get a single ping per client and extract the list of client ids.</p>
+<div class="codehilite"><pre><span></span><span class="n">deduped_main</span> <span class="o">=</span> <span class="n">dedupe</span><span class="p">(</span><span class="n">subset_main</span><span class="p">,</span> <span class="s2">"id"</span><span class="p">)</span>
+<span class="n">updated_clientIds</span> <span class="o">=</span> <span class="n">dedupe</span><span class="p">(</span><span class="n">deduped_main</span><span class="p">,</span> <span class="s2">"clientId"</span><span class="p">)</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"clientId"</span><span class="p">))</span>
+<span class="n">updated_count</span> <span class="o">=</span> <span class="n">updated_clientIds</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
+</pre></div>
+<p><strong>Step 3</strong> - Count how many clients that were meant to update actually updated in the following 7 days.</p>
+<div class="codehilite"><pre><span></span><span class="n">matching_clientIds</span> <span class="o">=</span> <span class="n">update_candidates_clientIds</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">updated_clientIds</span><span class="p">)</span>
+<span class="n">matching_count</span> <span class="o">=</span> <span class="n">matching_clientIds</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
+</pre></div>
+<div class="codehilite"><pre><span></span><span class="k">print</span><span class="p">(</span><span class="s2">"{:.3f}</span><span class="si">% o</span><span class="s2">f the clients that sent the update ping updated to the newer Beta build within a week."</span>\
+      <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">pct</span><span class="p">(</span><span class="n">matching_count</span><span class="p">,</span> <span class="n">candidates_count</span><span class="p">)))</span>
+<span class="k">print</span><span class="p">(</span><span class="s2">"{:.3f}</span><span class="si">% o</span><span class="s2">f the clients that were seen on the newer Beta build sent an update ping."</span>\
+      <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">pct</span><span class="p">(</span><span class="n">candidates_count</span><span class="p">,</span> <span class="n">updated_count</span><span class="p">)))</span>
+</pre></div>
+<div class="codehilite"><pre><span></span>91.445% of the clients that sent the update ping updated to the newer Beta build within a week.
+98.819% of the clients that were seen on the newer Beta build sent an update ping.
+</pre></div>
+<p>Roughly 98% of the clients that were seen in the new Beta build also sent the update ping. This is way higher than the 80% we saw on Nightly, but still not 100%. This could be due to a few reasons:</p>
+<ul>
+<li>some users are disabling automatic updates and no <code>update</code> ping is sent <a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1386619">in that case</a> if an update is manually triggered;</li>
+<li>some users are doing pave-over installs, by re-installing Firefox through the installer rather than relying on the update system;</li>
+<li>another unkown edge case in the client, that was not documented.</li>
+</ul>
+<div class="codehilite"><pre><span></span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+</div></body></html>
+<div>
+
+</div>
+
+
+<br/>
+<div class="row">
+<div class="col-md-12">
+</div>
+</div>
+
+
+
+
+<script type="text/javascript">
+            $("#searchbar")[0].setSelectionRange(1000, 1000);
+
+            $('#searchbar').typeahead({
+                hint: false,
+                highlight: true,
+                minLength: 1
+              },
+              {
+                name: 'knowledge_posts',
+                limit: 10,
+                display: function (item) {
+                  return item.title + " - " + item.author;
+                },
+                templates: {
+                  empty: Handlebars.compile(
+                    '<div class="tt-not-found">' +
+                      'Unable to find any posts that match the current query' +
+                      '</div>'
+                  ),
+                  suggestion: function(data) {
+                    return '<p style="overflow-wrap:break-word"><strong class="text-rausch">' + data.title + '</strong> – ' + data.author + '</p>';
+                  }
+                },
+                source: function(q, sync, async) {
+                  $.ajax('/ajax/index/typeahead?search=' + q,
+                  {
+                    success: function(data,status){ async(JSON.parse(data)); }
+                  })
+                }
+              });
+
+
+            $('#searchbar').bind('typeahead:select', function(obj, datum, name) {
+              window.location = '/post/'+encodeURIComponent(datum.path);
+            });
+
+            $('#searchbar').keypress(function(event){
+              var keycode = (event.keyCode ? event.keyCode : event.which);
+              if(keycode == '13'){
+                var path = document.location.pathname;
+                window.location = '/feed?filters=' + $('#searchbar').val()
+              }
+            });
+
+            var padding = $('.tt-menu').outerWidth()
+            $('.tt-menu').width($('#searchbar').width() + padding + "px")
+
+        </script>
+<script src="https://reports.telemetry.mozilla.org/static/js/tooltips.js" type="text/javascript"></script>
+<script type="text/javascript">
+$("document").ready(function(){
+  var is_webeditor = false;
+  
+  var post_id = "26";
+  var id = "None";
+  var post_path = "projects/update_ping_ready_beta_validation.kp"
+  var data_repo_github_root = ""
+  tooltipsJx.initializeTooltips(is_webeditor, post_id, id, data_repo_github_root);
+
+  $(".btn-rendered").on("click", function(){
+    document.location.href = "/post/" + encodeURI(post_path);
+  })
+
+  $(".btn-raw").on("click", function(){
+    document.location.href = "/post/" + encodeURI(post_path) + "?render=raw";
+  })
+
+  $(".btn-webeditor").on("click", function(){
+    document.location.href = "/edit/" + encodeURI(post_path);
+  })
+});
+
+</script>
+<script src="https://reports.telemetry.mozilla.org/static/js/helpers.js"></script>
+<script src="https://reports.telemetry.mozilla.org/static/js/tags.js" type="text/javascript"></script>
+<script src="https://reports.telemetry.mozilla.org/static/js/icons.js" type="text/javascript"></script>
+<script src="https://reports.telemetry.mozilla.org/static/js/comments.js" type="text/javascript"></script>
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({
+    extensions: ["tex2jax.js"],
+    jax: ["input/TeX", "output/HTML-CSS"],
+    tex2jax: {
+      inlineMath: [ ['$','$'], ["\\(","\\)"] ],
+      displayMath: [ ['$$','$$'], ["\\[","\\]"] ],
+      processEscapes: true
+    },
+    "HTML-CSS": { availableFonts: ["TeX"] }
+  });
+</script>
+<script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js" type="text/javascript">
+</script>
+<script>
+$(document).on('ready', function(){
+  // Make the Rendered Markdown Button active
+  $(".btn-rendered").addClass("btn-active");
+
+  // Initialize headers
+  helpersJx.linkifyHeaders();
+
+  // Initialize comments
+  var post_path = 'projects/update_ping_ready_beta_validation.kp';
+
+  $("#post_comment_btn").on('click', function(){
+      comment_author = 'knowledge_default';
+      post_author = 'dexter';
+      post_title = 'update ping validation on Beta';
+      commentsJx.postComment(comment_author, post_author, post_title, post_path);
+      location.reload();
+  });
+
+  all_comment_delete_buttons = $("[id^=delete_comment]")
+  $.each(all_comment_delete_buttons, function(i,v){
+      $(v).on("click", function(){
+          var id = v.id;
+          var comment_id = id.split("__")[1];
+          if(comment_id) {
+            commentsJx.deleteComment(post_path, comment_id)
+            location.reload();
+          }
+      });
+  });
+  $(document.body).on('click',"button[id^=tag-subscription]",function () {
+    tagsJx.addTagSubscriptionListener($(this)[0]);
+  });
+})
+
+//Turn all the headers to be links
+//h1 = Title, don't want that
+var all_headers = [$("h2"), $("h3"), $("h4"), $("h5"), $("h6")]
+$.each(all_headers, function(index, value){
+  $.each(value, function(i, v){
+    var inner_html = v.innerHTML
+    inner_html_no_special = inner_html.replace(/[^a-zA-Z\- ]/g, "")
+    var inner_link = "#" + inner_html_no_special.toLowerCase().split(" ").join("-")
+    v.innerHTML = "<a href='" + inner_link + "' class=link-reset>" + inner_html + "</a>"
+  })
+})
+
+//turn all the tags into links, similar to what's done on the feed page
+var tags = $("#renderedMarkdown .metadata .tags")[0]
+var tags_list = ['firefox', 'update', 'latency']
+var subscriptions_list = []
+$.each(tags_list, function(i,tag){
+  ahref = document.createElement("a")
+  e_tag = encodeURIComponent(tag)
+  f_tag = tag.replace("/", "__")
+  tag_name = "#" + tag
+  tag_subscription_button_id_name = "tag-subscription-" + i + "__" + f_tag
+  ahref.setAttribute("data-container", "body")
+  ahref.setAttribute("data-toggle", "popover")
+  ahref.setAttribute("data-placement", "bottom")
+  ahref.setAttribute("data-html", "true")
+  ahref.setAttribute("data-tag-name", f_tag)
+  if (subscriptions_list.indexOf(tag) >= 0) {
+    ahref.setAttribute("class", "label label-subscribed pop")
+    ahref.setAttribute("data-content", "<div class='content'>" +
+                  " <button class='btn btn-small btn-primary btn-unsubscribe'" +
+                        " title='' " +
+                          " id='" + tag_subscription_button_id_name + "'> " +
+                    " <i class='glyphicon glyphicon-remove-sign glyphicon-white'></i>Unsubscribe " +
+                  " </button> " +
+                  " </div>")
+  } else {
+    ahref.setAttribute("class", "label label-unsubscribed pop")
+    ahref.setAttribute("data-content", "<div class='content'>" +
+                  " <button class='btn btn-small btn-default btn-subscribe'" +
+                        " title='' " +
+                          " id='" + tag_subscription_button_id_name + "'> " +
+                    " <i class='glyphicon glyphicon-ok-sign glyphicon-filled'></i>Subscribe " +
+                  " </button> " +
+                  " </div>")
+  }
+  ahref.setAttribute("href", "/tag_pages?tag=" + e_tag)
+  ahref.setAttribute("style", "font-weight:normal")
+  if (i == 0){
+    ahref.innerHTML = " "
+    colon = document.createElement("text")
+    colon.innerHTML = "<b>Tags</b>: "
+    tags.appendChild(colon)
+  }
+  ahref.innerHTML = ahref.innerHTML + tag_name
+  tags.appendChild(ahref)
+  if (i != tags_list.length - 1){
+    comma = document.createElement("text")
+    comma.innerText = ", "
+    tags.appendChild(comma)
+  }
+})
+tags.nextSibling.remove()
+
+tags.innerHTML += "<i class='glyphicon glyphicon-edit icon-gray' style='font-size:12pt; padding-left:4px' id='tooltip-edit_tags'></i>"
+
+$(".pop").popover({ trigger: "manual" , html: true, animation:false, delay: 100})
+  .on("mouseenter", function () {
+      var _this = this;
+      $(this).popover("show");
+      $(".popover").on("mouseleave", function () {
+          $(_this).popover('hide');
+      });
+  }).on("mouseleave", function () {
+      var _this = this;
+      setTimeout(function () {
+          if (!$(".popover:hover").length) {
+              $(_this).popover("hide");
+          }
+      }, 300);
+});
+
+$('#tooltip-edit_tags').click(function(){
+  $('#tooltip-edit_tags')[0].setAttribute("style", "display:none")
+  previousSibling = $("#tooltip-edit_tags")[0].previousSibling
+  tags_string = tags_list.join(", ")
+  form = document.createElement("form")
+  input = document.createElement("input")
+  tags_text = document.createElement("text")
+  icon_class = document.createElement("i")
+  icon_class.setAttribute("class", "glyphicon glyphicon-upload icon-gray")
+  icon_class.setAttribute("style", "font-size:23px; padding-left:4px")
+  icon_class.setAttribute("id", "tooltip-save_tags")
+  tags_text.innerText = "Tags: "
+  input.setAttribute('type', 'text')
+  input.setAttribute('name', 'tags_list')
+  input.setAttribute('value', tags_string)
+  input.setAttribute('style', 'width:75%; display: inline-block')
+  input.setAttribute('id' , 'change_tags')
+  form.appendChild(tags_text)
+  tags.textContent = " "
+  form.appendChild(input)
+  form.appendChild(icon_class)
+  tags.appendChild(form)
+
+
+  $("#tooltip-save_tags").click(function(){
+    tags_string = $("#change_tags")[0].value
+    tags_list = tags_string.split(",")
+
+    var re = /^[a-z0-9\-\_\:\/]+$/i
+    var good = true
+    for (var i = 0; i < tags_list.length; i++){
+      tag = tags_list[i]
+      if (tag.length == 0){
+        alert("There is a tag with length 0 - possible a trailing comma?")
+        good = false
+        break
+      } else {
+        tag_name = tag.trim()
+        if (!(re.test(tag_name))){
+           alert("The tag contains special characters. Make sure there are only alphanumeric characters in your tag")
+           good = false
+           break
+        }
+      }
+    }
+    if (good) {
+    var postContent = {}
+      postContent['tags'] = tags_string
+      $.ajax({
+        type: "POST",
+        dataType: "json",
+        data: JSON.stringify(postContent),
+        contentType: "application/json",
+        url: '/tag_list?post_path=projects/update_ping_ready_beta_validation.kp',
+        async: false
+      });
+      location.reload()
+    }
+  })
+
+  tags.nextSibling.remove()
+
+  // Allow user to edit tags
+  var edit_icon = iconsJx.createEditTagsIcon();
+  $(tags).after(edit_icon);
+
+  $("#tooltip-edit_tags").on("click", function(){
+      var edit_tooltip = $("#tooltip-edit_tags");
+      edit_tooltip.attr("style", "display:none");
+
+      var tags_string = tags_list.join(", ");
+      var form = $("<form>");
+      var input = $("<input>");
+
+      var tags_text = $("<text>");
+      tags_text.html("Tags: ");
+
+
+      var icon = iconsJx.createSaveTagsIcon();
+
+      input.attr("type", "text");
+      input.attr("name", "tags_list");
+      input.attr("style", "width:75%; display: inline-block");
+      input.attr("id", "change_tags");
+
+      form.append(tags_text);
+      tags.textContent = " ";
+      tags_text.innerHTML = "Tags: ";
+      form.append(input);
+      form.append(icon);
+      tags.appendChild(form[0]);
+      $("#change_tags")[0].value = tags_string;
+
+
+      $("#change_tags").keypress(function(e){
+          if (e.which == 13){
+              var tags_string = $("#change_tags")[0].value;
+              var post_path = "projects/update_ping_ready_beta_validation.kp";
+              tagsJx.changeAndSaveTags(post_path, tags_string);
+              return false;
+          };
+      });
+
+
+      $("#tooltip-save_tags").click(function(){
+          var tags_string = $("#change_tags")[0].value;
+          var post_path = "projects/update_ping_ready_beta_validation.kp";
+          tagsJx.changeAndSaveTags(post_path, tags_string);
+      });
+
+       $("form").submit(function(){
+          var tags_string = $("#change_tags")[0].value;
+          var post_path = "projects/update_ping_ready_beta_validation.kp";
+          tagsJx.changeAndSaveTags(post_path, tags_string);
+          return false
+      })
+  });
+
+});
+
+</script>
+
+

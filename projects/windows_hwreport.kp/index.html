@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+<meta charset="utf-8"/>
+<title> Knowledge </title>
+<!-- js includes at the top as post embedded js colliding -->
+<script src="https://reports.telemetry.mozilla.org/static/modules/jquery/jquery.min.js"></script>
+<script src="https://reports.telemetry.mozilla.org/static/modules/tether/js/tether.min.js"></script>
+<script src="https://reports.telemetry.mozilla.org/static/modules/bootstrap/js/bootstrap.min.js"></script>
+<script src="https://reports.telemetry.mozilla.org/static/modules/bootstrap-slider/js/bootstrap-slider.min.js"></script>
+<script src="https://reports.telemetry.mozilla.org/static/modules/typeahead.js/typeahead.bundle.min.js"></script>
+<script src="https://reports.telemetry.mozilla.org/static/modules/handlebars/js/handlebars.js"></script>
+<script src="https://reports.telemetry.mozilla.org/static/js/helpers.js"></script>
+<script src="https://reports.telemetry.mozilla.org/static/modules/select2/js/select2.min.js"></script>
+<script src="https://reports.telemetry.mozilla.org/static/modules/hightlight.pack.js/highlight.pack.js"></script>
+<script src="https://reports.telemetry.mozilla.org/static/modules/marked.js/marked.js"></script>
+<!-- require js is used for plotly, but has a bunch of collisions with other js packages
+             make sure to have it be last js package imported -->
+<script src="https://reports.telemetry.mozilla.org/static/modules/require.js/require.min.js"></script>
+<!--[if lt IE 9]>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/html5shiv/3.6.2/html5shiv.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/es5-shim/2.1.0/es5-shim.min.js"></script>
+        <![endif]-->
+<link href="https://reports.telemetry.mozilla.org/static/modules/bootstrap/css/bootstrap.min.css" rel="stylesheet"/>
+<link href="https://reports.telemetry.mozilla.org/static/modules/bootstrap-slider/css/bootstrap-slider.min.css" rel="stylesheet"/>
+<link href="https://reports.telemetry.mozilla.org/static/css/custom.css" rel="stylesheet" type="text/css"/>
+<link href="https://reports.telemetry.mozilla.org/static/modules/select2/css/select2.min.css" rel="stylesheet" type="text/css"/>
+<link href="https://fonts.googleapis.com/css?family=Lato:400,900|Playfair+Display|Source+Serif+Pro:400,700" rel="stylesheet" type="text/css"/>
+<link href="https://reports.telemetry.mozilla.org/static/images/favicon.png" rel="shortcut icon"/>
+<link href="https://reports.telemetry.mozilla.org/static/css/codehilite-friendly.css" rel="stylesheet"/>
+<style>
+            .spinner {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                margin-left: -50px; /* half width of the spinner gif */
+                margin-top: -50px; /* half height of the spinner gif */
+                text-align:center;
+                z-index:1234;
+                overflow: auto;
+                width: 100px; /* width of the spinner gif */
+                height: 102px; /*hight of the spinner gif +2px to fix IE8 issue */
+            }
+
+            .table {
+              font-size: 14px;
+            }
+
+            .modal-content {
+              max-width: 1024px;
+            }
+
+             
+
+          </style>
+</head>
+<body>
+
+<div class="container page-container">
+<br/>
+<div class="container-fluid">
+<div class="row">
+<div class="col-md-6">
+
+</div>
+<div class="col-md-2">
+</div>
+
+</div>
+<div class="row col-md-12">
+</div>
+</div>
+<div class="container-fluid">
+<div class="row">
+<div class="col-md-12">
+<div id="renderedMarkdown">
+<div class="metadata">
+<h1>Hardware Report for Windows 7 and Windows 10 users.</h1>
+<span class="authors"><a href="/feed?authors=Alessio+Placitelli">Alessio Placitelli</a></span>
+<span class="date_created">April 05, 2017</span>
+<span class="date_updated">(Last Updated: April 06, 2017)</span>
+<span class="tldr"><p>This is a one-off ETL job for getting separate hardware reports for users runing Windows 7 or Windows 10.</p></span>
+
+</div>
+<div class="codehilite"><pre><span></span><span class="kn">import</span> <span class="nn">ujson</span> <span class="kn">as</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">datetime</span> <span class="kn">as</span> <span class="nn">dt</span>
+<span class="kn">import</span> <span class="nn">os.path</span>
+<span class="kn">import</span> <span class="nn">boto3</span>
+<span class="kn">import</span> <span class="nn">botocore</span>
+<span class="kn">import</span> <span class="nn">calendar</span>
+<span class="kn">import</span> <span class="nn">requests</span>
+<span class="kn">import</span> <span class="nn">moztelemetry.standards</span> <span class="kn">as</span> <span class="nn">moz_std</span>
+
+<span class="o">%</span><span class="n">pylab</span> <span class="n">inline</span>
+</pre></div>
+<h3 id="miscellaneous-functions">Miscellaneous functions</h3>
+<div class="codehilite"><pre><span></span><span class="k">def</span> <span class="nf">fetch_json</span><span class="p">(</span><span class="n">uri</span><span class="p">):</span>
+    <span class="sd">""" Perform an HTTP GET on the given uri, return the results as json.</span>
+<span class="sd">    If there is an error fetching the data, raise an exception.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        uri: the string URI to fetch.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A JSON object with the response.</span>
+<span class="sd">    """</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">uri</span><span class="p">)</span>
+    <span class="c1"># Raise an exception if the fetch failed.</span>
+    <span class="n">data</span><span class="o">.</span><span class="n">raise_for_status</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">data</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+<span class="k">def</span> <span class="nf">get_OS_arch</span><span class="p">(</span><span class="n">browser_arch</span><span class="p">,</span> <span class="n">os_name</span><span class="p">,</span> <span class="n">is_wow64</span><span class="p">):</span>
+    <span class="sd">""" Infers the OS arch from environment data.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        browser_arch: the browser architecture string (either "x86" or "x86-64").</span>
+<span class="sd">        os_name: the operating system name.</span>
+<span class="sd">        is_wow64: on Windows, indicates if the browser process is running under WOW64.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        'x86' if the underlying OS is 32bit, 'x86-64' if it's a 64bit OS.</span>
+<span class="sd">    """</span>
+
+    <span class="n">is_64bit_browser</span> <span class="o">=</span> <span class="n">browser_arch</span> <span class="o">==</span> <span class="s1">'x86-64'</span>
+    <span class="c1"># If it's a 64bit browser build, then we're on a 64bit system.</span>
+    <span class="k">if</span> <span class="n">is_64bit_browser</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s1">'x86-64'</span>
+
+    <span class="n">is_windows</span> <span class="o">=</span> <span class="n">os_name</span> <span class="o">==</span> <span class="s1">'Windows_NT'</span>
+    <span class="c1"># If we're on Windows, with a 32bit browser build, and |isWow64 = true|,</span>
+    <span class="c1"># then we're on a 64 bit system.</span>
+    <span class="k">if</span> <span class="n">is_windows</span> <span class="ow">and</span> <span class="n">is_wow64</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s1">'x86-64'</span>
+
+    <span class="c1"># Otherwise we're probably on a 32 bit system.</span>
+    <span class="k">return</span> <span class="s1">'x86'</span>
+
+<span class="k">def</span> <span class="nf">vendor_name_from_id</span><span class="p">(</span><span class="nb">id</span><span class="p">):</span>
+    <span class="sd">""" Get the string name matching the provided vendor id.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        id: A string containing the vendor id.</span>
+
+<span class="sd">    Returns: </span>
+<span class="sd">        A string containing the vendor name or "(Other &lt;ID&gt;)" if</span>
+<span class="sd">        unknown.</span>
+<span class="sd">    """</span>
+
+    <span class="c1"># TODO: We need to make this an external resource for easier</span>
+    <span class="c1"># future updates.</span>
+    <span class="n">vendor_map</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">'0x1013'</span><span class="p">:</span> <span class="s1">'Cirrus Logic'</span><span class="p">,</span>
+        <span class="s1">'0x1002'</span><span class="p">:</span> <span class="s1">'AMD'</span><span class="p">,</span>
+        <span class="s1">'0x8086'</span><span class="p">:</span> <span class="s1">'Intel'</span><span class="p">,</span>
+        <span class="s1">'0x5333'</span><span class="p">:</span> <span class="s1">'S3 Graphics'</span><span class="p">,</span>
+        <span class="s1">'0x1039'</span><span class="p">:</span> <span class="s1">'SIS'</span><span class="p">,</span>
+        <span class="s1">'0x1106'</span><span class="p">:</span> <span class="s1">'VIA'</span><span class="p">,</span>
+        <span class="s1">'0x10de'</span><span class="p">:</span> <span class="s1">'NVIDIA'</span><span class="p">,</span>
+        <span class="s1">'0x102b'</span><span class="p">:</span> <span class="s1">'Matrox'</span><span class="p">,</span>
+        <span class="s1">'0x15ad'</span><span class="p">:</span> <span class="s1">'VMWare'</span><span class="p">,</span>
+        <span class="s1">'0x80ee'</span><span class="p">:</span> <span class="s1">'Oracle VirtualBox'</span><span class="p">,</span>
+        <span class="s1">'0x1414'</span><span class="p">:</span> <span class="s1">'Microsoft Basic'</span><span class="p">,</span>
+    <span class="p">}</span>
+
+    <span class="k">return</span> <span class="n">vendor_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">id</span><span class="p">,</span> <span class="s2">"Other"</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">get_device_family_chipset</span><span class="p">(</span><span class="n">vendor_id</span><span class="p">,</span> <span class="n">device_id</span><span class="p">):</span>
+    <span class="sd">""" Get the family and chipset strings given the vendor and device ids.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        vendor_id: a string representing the vendor id (e.g. '0xabcd').</span>
+<span class="sd">        device_id: a string representing the device id (e.g. '0xbcde').</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A string in the format "Device Family Name-Chipset Name".</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">vendor_id</span> <span class="ow">in</span> <span class="n">device_map</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">"Unknown"</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">device_id</span> <span class="ow">in</span> <span class="n">device_map</span><span class="p">[</span><span class="n">vendor_id</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="s2">"Unknown"</span>
+
+    <span class="k">return</span> <span class="s2">"-"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">device_map</span><span class="p">[</span><span class="n">vendor_id</span><span class="p">][</span><span class="n">device_id</span><span class="p">])</span>
+
+<span class="k">def</span> <span class="nf">invert_device_map</span><span class="p">(</span><span class="n">m</span><span class="p">):</span>
+    <span class="sd">""" Inverts a GPU device map fetched from the jrmuizel's Github repo. </span>
+<span class="sd">    The layout of the fetched GPU map layout is:</span>
+<span class="sd">        Vendor ID -&gt; Device Family -&gt; Chipset -&gt; [Device IDs]</span>
+<span class="sd">    We should convert it to:</span>
+<span class="sd">        Vendor ID -&gt; Device ID -&gt; [Device Family, Chipset]</span>
+<span class="sd">    """</span>
+    <span class="n">device_id_map</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">vendor</span><span class="p">,</span> <span class="n">u</span> <span class="ow">in</span> <span class="n">m</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
+        <span class="n">device_id_map</span><span class="p">[</span><span class="s1">'0x'</span> <span class="o">+</span> <span class="n">vendor</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">family</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">u</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">chipset</span><span class="p">,</span> <span class="n">ids</span> <span class="ow">in</span> <span class="n">v</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
+                <span class="n">device_id_map</span><span class="p">[</span><span class="s1">'0x'</span> <span class="o">+</span> <span class="n">vendor</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">({(</span><span class="s1">'0x'</span> <span class="o">+</span> <span class="n">gfx_id</span><span class="p">):</span> <span class="p">[</span><span class="n">family</span><span class="p">,</span> <span class="n">chipset</span><span class="p">]</span> <span class="k">for</span> <span class="n">gfx_id</span> <span class="ow">in</span> <span class="n">ids</span><span class="p">})</span>
+    <span class="k">return</span> <span class="n">device_id_map</span>
+
+<span class="k">def</span> <span class="nf">build_device_map</span><span class="p">():</span>
+    <span class="sd">""" This function builds a dictionary that will help us mapping vendor/device ids to a </span>
+<span class="sd">    human readable device family and chipset name."""</span>
+
+    <span class="n">intel_raw</span> <span class="o">=</span> <span class="n">fetch_json</span><span class="p">(</span><span class="s2">"https://github.com/jrmuizel/gpu-db/raw/master/intel.json"</span><span class="p">)</span>
+    <span class="n">nvidia_raw</span> <span class="o">=</span> <span class="n">fetch_json</span><span class="p">(</span><span class="s2">"https://github.com/jrmuizel/gpu-db/raw/master/nvidia.json"</span><span class="p">)</span>
+    <span class="n">amd_raw</span> <span class="o">=</span> <span class="n">fetch_json</span><span class="p">(</span><span class="s2">"https://github.com/jrmuizel/gpu-db/raw/master/amd.json"</span><span class="p">)</span>
+
+    <span class="n">device_map</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">device_map</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">invert_device_map</span><span class="p">(</span><span class="n">intel_raw</span><span class="p">))</span>
+    <span class="n">device_map</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">invert_device_map</span><span class="p">(</span><span class="n">nvidia_raw</span><span class="p">))</span>
+    <span class="n">device_map</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">invert_device_map</span><span class="p">(</span><span class="n">amd_raw</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">device_map</span>
+
+<span class="n">device_map</span> <span class="o">=</span> <span class="n">build_device_map</span><span class="p">()</span>
+</pre></div>
+<h3 id="functions-to-query-the-longitudinal-dataset">Functions to query the longitudinal dataset</h3>
+<div class="codehilite"><pre><span></span><span class="c1"># Reasons why the data for a client can be discarded.</span>
+<span class="n">REASON_INACTIVE</span> <span class="o">=</span> <span class="s2">"inactive"</span>
+<span class="n">REASON_BROKEN_DATA</span> <span class="o">=</span> <span class="s2">"broken"</span>
+
+<span class="k">def</span> <span class="nf">get_valid_client_record</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">data_index</span><span class="p">):</span>
+    <span class="sd">""" Check if the referenced record is sane or contains partial/broken data.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        r: The client entry in the longitudinal dataset.</span>
+<span class="sd">        dat_index: The index of the sample within the client record.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        An object containing the client hardware data or REASON_BROKEN_DATA if the</span>
+<span class="sd">        data is invalid.</span>
+<span class="sd">    """</span>
+    <span class="n">gfx_adapters</span> <span class="o">=</span> <span class="n">r</span><span class="p">[</span><span class="s2">"system_gfx"</span><span class="p">][</span><span class="n">data_index</span><span class="p">][</span><span class="s2">"adapters"</span><span class="p">]</span>
+    <span class="n">monitors</span> <span class="o">=</span> <span class="n">r</span><span class="p">[</span><span class="s2">"system_gfx"</span><span class="p">][</span><span class="n">data_index</span><span class="p">][</span><span class="s2">"monitors"</span><span class="p">]</span>
+
+    <span class="c1"># We should make sure to have GFX adapter. If we don't, discard this record.</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">gfx_adapters</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">gfx_adapters</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="n">REASON_BROKEN_DATA</span>
+
+    <span class="c1"># Due to bug 1175005, Firefox on Linux isn't sending the screen resolution data.</span>
+    <span class="c1"># Don't discard the rest of the ping for that: just set the resolution to 0 if</span>
+    <span class="c1"># unavailable. See bug 1324014 for context.</span>
+    <span class="n">screen_width</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">screen_height</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">if</span> <span class="n">monitors</span> <span class="ow">and</span> <span class="n">monitors</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+        <span class="n">screen_width</span> <span class="o">=</span> <span class="n">monitors</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s2">"screen_width"</span><span class="p">]</span>
+        <span class="n">screen_height</span> <span class="o">=</span> <span class="n">monitors</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s2">"screen_height"</span><span class="p">]</span>
+
+    <span class="c1"># Non Windows OS do not have that property.</span>
+    <span class="n">is_wow64</span> <span class="o">=</span> <span class="n">r</span><span class="p">[</span><span class="s2">"system"</span><span class="p">][</span><span class="n">data_index</span><span class="p">][</span><span class="s2">"is_wow64"</span><span class="p">]</span> <span class="o">==</span> <span class="bp">True</span>
+
+    <span class="c1"># At this point, we should have filtered out all the weirdness. Fetch</span>
+    <span class="c1"># the data we need. </span>
+    <span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">'browser_arch'</span><span class="p">:</span> <span class="n">r</span><span class="p">[</span><span class="s2">"build"</span><span class="p">][</span><span class="n">data_index</span><span class="p">][</span><span class="s2">"architecture"</span><span class="p">],</span>
+        <span class="s1">'os_name'</span><span class="p">:</span> <span class="n">r</span><span class="p">[</span><span class="s2">"system_os"</span><span class="p">][</span><span class="n">data_index</span><span class="p">][</span><span class="s2">"name"</span><span class="p">],</span>
+        <span class="s1">'os_version'</span><span class="p">:</span> <span class="n">r</span><span class="p">[</span><span class="s2">"system_os"</span><span class="p">][</span><span class="n">data_index</span><span class="p">][</span><span class="s2">"version"</span><span class="p">],</span>
+        <span class="s1">'memory_mb'</span><span class="p">:</span> <span class="n">r</span><span class="p">[</span><span class="s2">"system"</span><span class="p">][</span><span class="n">data_index</span><span class="p">][</span><span class="s2">"memory_mb"</span><span class="p">],</span>
+        <span class="s1">'is_wow64'</span><span class="p">:</span> <span class="n">is_wow64</span><span class="p">,</span>
+        <span class="s1">'num_gfx_adapters'</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">gfx_adapters</span><span class="p">),</span>
+        <span class="s1">'gfx0_vendor_id'</span><span class="p">:</span> <span class="n">gfx_adapters</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s2">"vendor_id"</span><span class="p">],</span>
+        <span class="s1">'gfx0_device_id'</span><span class="p">:</span> <span class="n">gfx_adapters</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s2">"device_id"</span><span class="p">],</span>
+        <span class="s1">'screen_width'</span><span class="p">:</span> <span class="n">screen_width</span><span class="p">,</span>
+        <span class="s1">'screen_height'</span><span class="p">:</span> <span class="n">screen_height</span><span class="p">,</span>
+        <span class="s1">'cpu_cores'</span><span class="p">:</span> <span class="n">r</span><span class="p">[</span><span class="s2">"system_cpu"</span><span class="p">][</span><span class="n">data_index</span><span class="p">][</span><span class="s2">"cores"</span><span class="p">],</span>
+        <span class="s1">'cpu_vendor'</span><span class="p">:</span> <span class="n">r</span><span class="p">[</span><span class="s2">"system_cpu"</span><span class="p">][</span><span class="n">data_index</span><span class="p">][</span><span class="s2">"vendor"</span><span class="p">],</span>
+        <span class="s1">'cpu_speed'</span><span class="p">:</span> <span class="n">r</span><span class="p">[</span><span class="s2">"system_cpu"</span><span class="p">][</span><span class="n">data_index</span><span class="p">][</span><span class="s2">"speed_mhz"</span><span class="p">],</span>
+        <span class="s1">'has_flash'</span><span class="p">:</span> <span class="bp">False</span>
+    <span class="p">}</span>
+
+    <span class="c1"># The plugins data can still be null or empty, account for that.</span>
+    <span class="n">plugins</span> <span class="o">=</span> <span class="n">r</span><span class="p">[</span><span class="s2">"active_plugins"</span><span class="p">][</span><span class="n">data_index</span><span class="p">]</span> <span class="k">if</span> <span class="n">r</span><span class="p">[</span><span class="s2">"active_plugins"</span><span class="p">]</span> <span class="k">else</span> <span class="bp">None</span>
+    <span class="k">if</span> <span class="n">plugins</span><span class="p">:</span>
+        <span class="n">data</span><span class="p">[</span><span class="s1">'has_flash'</span><span class="p">]</span> <span class="o">=</span> <span class="nb">any</span><span class="p">([</span><span class="bp">True</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">plugins</span> <span class="k">if</span> <span class="n">p</span><span class="p">[</span><span class="s1">'name'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'Shockwave Flash'</span><span class="p">])</span>
+
+    <span class="k">return</span> <span class="n">REASON_BROKEN_DATA</span> <span class="k">if</span> <span class="bp">None</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">else</span> <span class="n">data</span>
+
+<span class="k">def</span> <span class="nf">get_latest_valid_per_client</span><span class="p">(</span><span class="n">entry</span><span class="p">):</span>
+    <span class="sd">""" Get the most recently submitted ping for a client.</span>
+
+<span class="sd">    Then use this index to look up the data from the other columns (we can assume that the sizes</span>
+<span class="sd">    of these arrays match, otherwise the longitudinal dataset is broken).</span>
+<span class="sd">    Once we have the data, we make sure it's valid and return it.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        entry: The record containing all the data for a single client.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        An object containing the valid hardware data for the client or</span>
+<span class="sd">        REASON_BROKEN_DATA if it send broken data. </span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: if the columns within the record have mismatching lengths. This</span>
+<span class="sd">        means the longitudinal dataset is corrupted.</span>
+<span class="sd">    """</span>
+
+    <span class="c1"># Some clients might be missing entire sections. If that's</span>
+    <span class="c1"># a basic section, skip them, we don't want partial data.</span>
+    <span class="c1"># Don't enforce the presence of "active_plugins", as it's not included</span>
+    <span class="c1"># by the pipeline if no plugin is reported by Firefox (see bug 1333806).</span>
+    <span class="n">desired_sections</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="s2">"build"</span><span class="p">,</span> <span class="s2">"system_os"</span><span class="p">,</span> <span class="s2">"submission_date"</span><span class="p">,</span> <span class="s2">"system"</span><span class="p">,</span>
+        <span class="s2">"system_gfx"</span><span class="p">,</span> <span class="s2">"system_cpu"</span>
+    <span class="p">]</span>
+
+    <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">desired_sections</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">entry</span><span class="p">[</span><span class="n">field</span><span class="p">]</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">REASON_BROKEN_DATA</span>
+
+        <span class="c1"># All arrays in the longitudinal dataset should have the same length, for a</span>
+        <span class="c1"># single client. If that's not the case, if our index is not there, throw.</span>
+        <span class="k">if</span> <span class="n">entry</span><span class="p">[</span><span class="n">field</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Null "</span> <span class="o">+</span> <span class="n">field</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">get_valid_client_record</span><span class="p">(</span><span class="n">entry</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+</pre></div>
+<h3 id="define-how-we-transform-the-data">Define how we transform the data</h3>
+<div class="codehilite"><pre><span></span><span class="k">def</span> <span class="nf">prepare_data</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+    <span class="sd">""" This function prepares the data for further analyses (e.g. unit conversion,</span>
+<span class="sd">    vendor id to string, ...). """</span>
+    <span class="n">cpu_speed</span> <span class="o">=</span> <span class="nb">round</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">'cpu_speed'</span><span class="p">]</span> <span class="o">/</span> <span class="mf">1000.0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s1">'browser_arch'</span><span class="p">:</span> <span class="n">p</span><span class="p">[</span><span class="s1">'browser_arch'</span><span class="p">],</span>
+        <span class="s1">'cpu_cores'</span><span class="p">:</span> <span class="n">p</span><span class="p">[</span><span class="s1">'cpu_cores'</span><span class="p">],</span>
+        <span class="s1">'cpu_cores_speed'</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">'cpu_cores'</span><span class="p">])</span> <span class="o">+</span> <span class="s1">'_'</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">cpu_speed</span><span class="p">),</span>
+        <span class="s1">'cpu_vendor'</span><span class="p">:</span> <span class="n">p</span><span class="p">[</span><span class="s1">'cpu_vendor'</span><span class="p">],</span>
+        <span class="s1">'cpu_speed'</span><span class="p">:</span> <span class="n">cpu_speed</span><span class="p">,</span>
+        <span class="s1">'num_gfx_adapters'</span><span class="p">:</span> <span class="n">p</span><span class="p">[</span><span class="s1">'num_gfx_adapters'</span><span class="p">],</span>
+        <span class="s1">'gfx0_vendor_name'</span><span class="p">:</span> <span class="n">vendor_name_from_id</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">'gfx0_vendor_id'</span><span class="p">]),</span>
+        <span class="s1">'gfx0_model'</span><span class="p">:</span> <span class="n">get_device_family_chipset</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">'gfx0_vendor_id'</span><span class="p">],</span> <span class="n">p</span><span class="p">[</span><span class="s1">'gfx0_device_id'</span><span class="p">]),</span>
+        <span class="s1">'resolution'</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">'screen_width'</span><span class="p">])</span> <span class="o">+</span> <span class="s1">'x'</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">'screen_height'</span><span class="p">]),</span>
+        <span class="s1">'memory_gb'</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">'memory_mb'</span><span class="p">]</span> <span class="o">/</span> <span class="mf">1024.0</span><span class="p">)),</span>
+        <span class="s1">'os'</span><span class="p">:</span> <span class="n">p</span><span class="p">[</span><span class="s1">'os_name'</span><span class="p">]</span> <span class="o">+</span> <span class="s1">'-'</span> <span class="o">+</span> <span class="n">p</span><span class="p">[</span><span class="s1">'os_version'</span><span class="p">],</span>
+        <span class="s1">'os_arch'</span><span class="p">:</span> <span class="n">get_OS_arch</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">'browser_arch'</span><span class="p">],</span> <span class="n">p</span><span class="p">[</span><span class="s1">'os_name'</span><span class="p">],</span> <span class="n">p</span><span class="p">[</span><span class="s1">'is_wow64'</span><span class="p">]),</span>
+        <span class="s1">'has_flash'</span><span class="p">:</span> <span class="n">p</span><span class="p">[</span><span class="s1">'has_flash'</span><span class="p">]</span>
+    <span class="p">}</span>
+
+<span class="k">def</span> <span class="nf">aggregate_data</span><span class="p">(</span><span class="n">processed_data</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">seq</span><span class="p">(</span><span class="n">acc</span><span class="p">,</span> <span class="n">v</span><span class="p">):</span>
+        <span class="c1"># The dimensions over which we want to aggregate the different values.</span>
+        <span class="n">keys_to_aggregate</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="s1">'browser_arch'</span><span class="p">,</span>
+            <span class="s1">'cpu_cores'</span><span class="p">,</span>
+            <span class="s1">'cpu_cores_speed'</span><span class="p">,</span>
+            <span class="s1">'cpu_vendor'</span><span class="p">,</span>
+            <span class="s1">'cpu_speed'</span><span class="p">,</span>
+            <span class="s1">'num_gfx_adapters'</span><span class="p">,</span>
+            <span class="s1">'gfx0_vendor_name'</span><span class="p">,</span>
+            <span class="s1">'gfx0_model'</span><span class="p">,</span>
+            <span class="s1">'resolution'</span><span class="p">,</span>
+            <span class="s1">'memory_gb'</span><span class="p">,</span>
+            <span class="s1">'os'</span><span class="p">,</span>
+            <span class="s1">'os_arch'</span><span class="p">,</span>
+            <span class="s1">'has_flash'</span>
+        <span class="p">]</span>
+
+        <span class="k">for</span> <span class="n">key_name</span> <span class="ow">in</span> <span class="n">keys_to_aggregate</span><span class="p">:</span>
+            <span class="c1"># We want to know how many users have a particular configuration (e.g. using a particular</span>
+            <span class="c1"># cpu vendor). For each dimension of interest, build a key as (hw, value) and count its</span>
+            <span class="c1"># occurrences among the user base.</span>
+            <span class="n">acc_key</span> <span class="o">=</span> <span class="p">(</span><span class="n">key_name</span><span class="p">,</span> <span class="n">v</span><span class="p">[</span><span class="n">key_name</span><span class="p">])</span>
+            <span class="n">acc</span><span class="p">[</span><span class="n">acc_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">acc</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">acc_key</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+
+        <span class="k">return</span> <span class="n">acc</span>
+
+    <span class="k">def</span> <span class="nf">cmb</span><span class="p">(</span><span class="n">v1</span><span class="p">,</span> <span class="n">v2</span><span class="p">):</span>
+        <span class="c1"># Combine the counts from the two partial dictionaries. Hacky?</span>
+        <span class="k">return</span>  <span class="p">{</span> <span class="n">k</span><span class="p">:</span> <span class="n">v1</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="n">v2</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">set</span><span class="p">(</span><span class="n">v1</span><span class="p">)</span> <span class="o">|</span> <span class="nb">set</span><span class="p">(</span><span class="n">v2</span><span class="p">)</span> <span class="p">}</span>
+
+    <span class="k">return</span> <span class="n">processed_data</span><span class="o">.</span><span class="n">aggregate</span><span class="p">({},</span> <span class="n">seq</span><span class="p">,</span> <span class="n">cmb</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">collapse_buckets</span><span class="p">(</span><span class="n">aggregated_data</span><span class="p">,</span> <span class="n">count_threshold</span><span class="p">):</span>
+    <span class="sd">""" Collapse uncommon configurations in generic groups to preserve privacy.</span>
+
+<span class="sd">    This takes the dictionary of aggregated results from |aggregate_data| and collapses</span>
+<span class="sd">    entries with a value less than |count_threshold| in a generic bucket.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        aggregated_data: The object containing aggregated data.</span>
+<span class="sd">        count_threhold: Groups (or "configurations") containing less than this value</span>
+<span class="sd">        are collapsed in a generic bucket.</span>
+<span class="sd">    """</span>
+
+    <span class="c1"># These fields have a fixed set of values and we need to report all of them.</span>
+    <span class="n">EXCLUSION_LIST</span> <span class="o">=</span> <span class="p">[</span> <span class="s2">"has_flash"</span><span class="p">,</span> <span class="s2">"browser_arch"</span><span class="p">,</span> <span class="s2">"os_arch"</span> <span class="p">]</span>
+
+    <span class="n">collapsed_groups</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span><span class="n">v</span> <span class="ow">in</span> <span class="n">aggregated_data</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
+        <span class="n">key_type</span> <span class="o">=</span> <span class="n">k</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="c1"># If the resolution is 0x0 (see bug 1324014), put that into the "Other"</span>
+        <span class="c1"># bucket.</span>
+        <span class="k">if</span> <span class="n">key_type</span> <span class="o">==</span> <span class="s1">'resolution'</span> <span class="ow">and</span> <span class="n">k</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'0x0'</span><span class="p">:</span>
+            <span class="n">other_key</span> <span class="o">=</span> <span class="p">(</span><span class="s1">'resolution'</span><span class="p">,</span> <span class="s1">'Other'</span><span class="p">)</span>
+            <span class="n">collapsed_groups</span><span class="p">[</span><span class="n">other_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">collapsed_groups</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">other_key</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="n">v</span>
+            <span class="k">continue</span>
+
+        <span class="c1"># Don't clump this group into the "Other" bucket if it has enough</span>
+        <span class="c1"># users it in.</span>
+        <span class="k">if</span> <span class="n">v</span> <span class="o">&gt;</span> <span class="n">count_threshold</span> <span class="ow">or</span> <span class="n">key_type</span> <span class="ow">in</span> <span class="n">EXCLUSION_LIST</span><span class="p">:</span>
+            <span class="n">collapsed_groups</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+            <span class="k">continue</span>
+
+        <span class="c1"># If we're here, it means that the key has not enough elements.</span>
+        <span class="c1"># Fall through the next cases and try to group things together.</span>
+        <span class="n">new_group_key</span> <span class="o">=</span> <span class="s1">'Other'</span>
+
+        <span class="c1"># Let's try to group similar resolutions together.</span>
+        <span class="k">if</span> <span class="n">key_type</span> <span class="o">==</span> <span class="s1">'resolution'</span><span class="p">:</span>
+            <span class="c1"># Extract the resolution.</span>
+            <span class="p">[</span><span class="n">w</span><span class="p">,</span> <span class="n">h</span><span class="p">]</span> <span class="o">=</span> <span class="n">k</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">'x'</span><span class="p">)</span>
+            <span class="c1"># Round to the nearest hundred.</span>
+            <span class="n">w</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">w</span><span class="p">),</span> <span class="o">-</span><span class="mi">2</span><span class="p">))</span>
+            <span class="n">h</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">h</span><span class="p">),</span> <span class="o">-</span><span class="mi">2</span><span class="p">))</span>
+            <span class="c1"># Build up a new key.</span>
+            <span class="n">new_group_key</span> <span class="o">=</span> <span class="s1">'~'</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">w</span><span class="p">)</span> <span class="o">+</span> <span class="s1">'x'</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">h</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">key_type</span> <span class="o">==</span> <span class="s1">'os'</span><span class="p">:</span>
+            <span class="p">[</span><span class="n">os</span><span class="p">,</span> <span class="n">ver</span><span class="p">]</span> <span class="o">=</span> <span class="n">k</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">'-'</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">new_group_key</span> <span class="o">=</span> <span class="n">os</span> <span class="o">+</span> <span class="s1">'-'</span> <span class="o">+</span> <span class="s1">'Other'</span>
+
+        <span class="c1"># We don't have enough data for this particular group/configuration.</span>
+        <span class="c1"># Aggregate it with the data in the "Other" bucket</span>
+        <span class="n">other_key</span> <span class="o">=</span> <span class="p">(</span><span class="n">k</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">new_group_key</span><span class="p">)</span>
+        <span class="n">collapsed_groups</span><span class="p">[</span><span class="n">other_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">collapsed_groups</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">other_key</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="n">v</span>
+
+    <span class="c1"># The previous grouping might have created additional groups. Let's check again.</span>
+    <span class="n">final_groups</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span><span class="n">v</span> <span class="ow">in</span> <span class="n">collapsed_groups</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
+        <span class="c1"># Don't clump this group into the "Other" bucket if it has enough</span>
+        <span class="c1"># users it in.</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">v</span> <span class="o">&gt;</span> <span class="n">count_threshold</span> <span class="ow">and</span> <span class="n">k</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">'Other'</span><span class="p">)</span> <span class="ow">or</span> <span class="n">k</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="n">EXCLUSION_LIST</span><span class="p">:</span>
+            <span class="n">final_groups</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+            <span class="k">continue</span>
+
+        <span class="c1"># We don't have enough data for this particular group/configuration.</span>
+        <span class="c1"># Aggregate it with the data in the "Other" bucket</span>
+        <span class="n">other_key</span> <span class="o">=</span> <span class="p">(</span><span class="n">k</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">'Other'</span><span class="p">)</span>
+        <span class="n">final_groups</span><span class="p">[</span><span class="n">other_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">final_groups</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">other_key</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="n">v</span>
+
+    <span class="k">return</span> <span class="n">final_groups</span>
+
+
+<span class="k">def</span> <span class="nf">finalize_data</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">sample_count</span><span class="p">,</span> <span class="n">broken_ratio</span><span class="p">):</span>
+    <span class="sd">""" Finalize the aggregated data.</span>
+
+<span class="sd">    Translate raw sample numbers to percentages and add the date for the reported</span>
+<span class="sd">    week along with the percentage of discarded samples due to broken data.</span>
+
+<span class="sd">    Rename the keys to more human friendly names.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        data: Data in aggregated form.</span>
+<span class="sd">        sample_count: The number of samples the aggregates where generated from.</span>
+<span class="sd">        broken_ratio: The percentage of samples discarded due to broken data.</span>
+<span class="sd">        inactive_ratio: The percentage of samples discarded due to the client not sending data.</span>
+<span class="sd">        report_date: The starting day for the reported week.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        An object containing the reported hardware statistics.</span>
+<span class="sd">    """</span>
+
+    <span class="n">denom</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">sample_count</span><span class="p">)</span>
+
+    <span class="n">aggregated_percentages</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">'broken'</span><span class="p">:</span> <span class="n">broken_ratio</span><span class="p">,</span>
+    <span class="p">}</span>
+
+    <span class="n">keys_translation</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">'browser_arch'</span><span class="p">:</span> <span class="s1">'browserArch_'</span><span class="p">,</span>
+        <span class="s1">'cpu_cores'</span><span class="p">:</span> <span class="s1">'cpuCores_'</span><span class="p">,</span>
+        <span class="s1">'cpu_cores_speed'</span><span class="p">:</span> <span class="s1">'cpuCoresSpeed_'</span><span class="p">,</span>
+        <span class="s1">'cpu_vendor'</span><span class="p">:</span> <span class="s1">'cpuVendor_'</span><span class="p">,</span>
+        <span class="s1">'cpu_speed'</span><span class="p">:</span> <span class="s1">'cpuSpeed_'</span><span class="p">,</span>
+        <span class="s1">'num_gfx_adapters'</span><span class="p">:</span> <span class="s1">'gpuNum_'</span><span class="p">,</span>
+        <span class="s1">'gfx0_vendor_name'</span><span class="p">:</span> <span class="s1">'gpuVendor_'</span><span class="p">,</span>
+        <span class="s1">'gfx0_model'</span><span class="p">:</span> <span class="s1">'gpuModel_'</span><span class="p">,</span>
+        <span class="s1">'resolution'</span><span class="p">:</span> <span class="s1">'resolution_'</span><span class="p">,</span>
+        <span class="s1">'memory_gb'</span><span class="p">:</span> <span class="s1">'ram_'</span><span class="p">,</span>
+        <span class="s1">'os'</span><span class="p">:</span> <span class="s1">'osName_'</span><span class="p">,</span>
+        <span class="s1">'os_arch'</span><span class="p">:</span> <span class="s1">'osArch_'</span><span class="p">,</span>
+        <span class="s1">'has_flash'</span><span class="p">:</span> <span class="s1">'hasFlash_'</span>
+    <span class="p">}</span>
+
+    <span class="c1"># Compute the percentages from the raw numbers.</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
+        <span class="c1"># The old key is a tuple (key, value). We translate the key part and concatenate the</span>
+        <span class="c1"># value as a string.</span>
+        <span class="n">new_key</span> <span class="o">=</span> <span class="n">keys_translation</span><span class="p">[</span><span class="n">k</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="o">+</span> <span class="nb">unicode</span><span class="p">(</span><span class="n">k</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">aggregated_percentages</span><span class="p">[</span><span class="n">new_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span> <span class="o">/</span> <span class="n">denom</span>
+
+    <span class="k">return</span> <span class="n">aggregated_percentages</span>
+</pre></div>
+<h1 id="build-the-report">Build the report</h1>
+<p>We compute the hardware report for users running Windows 7 or Windows 10 by taking the most recent data available.</p>
+<div class="codehilite"><pre><span></span><span class="c1"># Connect to the longitudinal dataset and get a subset of the columns</span>
+<span class="n">sqlQuery</span> <span class="o">=</span> <span class="s2">"SELECT "</span> <span class="o">+</span>\
+           <span class="s2">"build,"</span> <span class="o">+</span>\
+           <span class="s2">"client_id,"</span> <span class="o">+</span>\
+           <span class="s2">"active_plugins,"</span> <span class="o">+</span>\
+           <span class="s2">"system_os,"</span> <span class="o">+</span>\
+           <span class="s2">"submission_date,"</span> <span class="o">+</span>\
+           <span class="s2">"system,"</span> <span class="o">+</span>\
+           <span class="s2">"system_gfx,"</span> <span class="o">+</span>\
+           <span class="s2">"system_cpu,"</span> <span class="o">+</span>\
+           <span class="s2">"normalized_channel "</span> <span class="o">+</span>\
+           <span class="s2">"FROM longitudinal"</span>
+<span class="n">frame</span> <span class="o">=</span> <span class="n">sqlContext</span><span class="o">.</span><span class="n">sql</span><span class="p">(</span><span class="n">sqlQuery</span><span class="p">)</span>\
+                  <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="s2">"normalized_channel = 'release'"</span><span class="p">)</span>\
+                  <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="s2">"system_os is not null and system_os[0].name = 'Windows_NT'"</span><span class="p">)</span>\
+                  <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="s2">"build is not null and build[0].application_name = 'Firefox'"</span><span class="p">)</span>
+
+
+<span class="c1"># The number of all the fetched records (including inactive and broken).</span>
+<span class="n">records_count</span> <span class="o">=</span> <span class="n">frame</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
+</pre></div>
+<h2 id="get-the-most-recent-valid-data-for-each-client">Get the most recent, valid data for each client.</h2>
+<div class="codehilite"><pre><span></span><span class="n">data</span> <span class="o">=</span> <span class="n">frame</span><span class="o">.</span><span class="n">rdd</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">r</span><span class="p">:</span> <span class="n">get_latest_valid_per_client</span><span class="p">(</span><span class="n">r</span><span class="p">))</span>
+
+<span class="c1"># Filter out broken data.</span>
+<span class="n">filtered_data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">r</span><span class="p">:</span> <span class="n">r</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">REASON_BROKEN_DATA</span><span class="p">)</span>
+
+<span class="c1"># Count the broken records</span>
+<span class="n">broken_count</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">r</span><span class="p">:</span> <span class="n">r</span> <span class="ow">is</span> <span class="n">REASON_BROKEN_DATA</span><span class="p">)</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
+<span class="k">print</span><span class="p">(</span><span class="s2">"Found {} broken records."</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">broken_count</span><span class="p">))</span>
+</pre></div>
+<h2 id="process-the-data">Process the data</h2>
+<p>This extracts the relevant information from each valid data unit returned from the previous step. Each <em>processed_data</em> entry represents a single user machine.</p>
+<div class="codehilite"><pre><span></span><span class="n">processed_data</span> <span class="o">=</span> <span class="n">filtered_data</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">prepare_data</span><span class="p">)</span>
+</pre></div>
+<div class="codehilite"><pre><span></span><span class="n">processed_data</span><span class="o">.</span><span class="n">first</span><span class="p">()</span>
+</pre></div>
+<h2 id="aggregate-the-data-for-windows-7-and-windows-10">Aggregate the data for Windows 7 and Windows 10</h2>
+<p>Aggregate the machine configurations in a more digestible form.</p>
+<div class="codehilite"><pre><span></span><span class="c1"># Aggregate the data for Windows 7 (Windows NT version 6.1)</span>
+<span class="n">windows7_data</span> <span class="o">=</span> <span class="n">processed_data</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"os"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"Windows_NT-6.1"</span><span class="p">)</span>
+<span class="n">aggregated_w7</span> <span class="o">=</span> <span class="n">aggregate_data</span><span class="p">(</span><span class="n">windows7_data</span><span class="p">)</span>
+<span class="n">windows7_count</span> <span class="o">=</span> <span class="n">windows7_data</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
+</pre></div>
+<div class="codehilite"><pre><span></span><span class="c1"># Aggregate the data for Windows 10 (Windows NT version 10.0)</span>
+<span class="n">windows10_data</span> <span class="o">=</span> <span class="n">processed_data</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"os"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"Windows_NT-10.0"</span><span class="p">)</span>
+<span class="n">aggregated_w10</span> <span class="o">=</span> <span class="n">aggregate_data</span><span class="p">(</span><span class="n">windows10_data</span><span class="p">)</span>
+<span class="n">windows10_count</span> <span class="o">=</span> <span class="n">windows10_data</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
+</pre></div>
+<p>Collapse together groups that count less than 1% of our samples.</p>
+<div class="codehilite"><pre><span></span><span class="n">valid_records_count</span> <span class="o">=</span> <span class="n">records_count</span> <span class="o">-</span> <span class="n">broken_count</span>
+<span class="n">threshold_to_collapse</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">valid_records_count</span> <span class="o">*</span> <span class="mf">0.01</span><span class="p">)</span>
+
+<span class="k">print</span> <span class="s2">"Collapsing smaller groups into the other bucket (threshold {th})"</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">th</span><span class="o">=</span><span class="n">threshold_to_collapse</span><span class="p">)</span>
+<span class="n">collapsed_w7</span> <span class="o">=</span> <span class="n">collapse_buckets</span><span class="p">(</span><span class="n">aggregated_w7</span><span class="p">,</span> <span class="n">threshold_to_collapse</span><span class="p">)</span>
+<span class="n">collapsed_w10</span> <span class="o">=</span> <span class="n">collapse_buckets</span><span class="p">(</span><span class="n">aggregated_w10</span><span class="p">,</span> <span class="n">threshold_to_collapse</span><span class="p">)</span>
+</pre></div>
+<h2 id="dump-the-aggregates-to-a-file">Dump the aggregates to a file.</h2>
+<div class="codehilite"><pre><span></span><span class="n">broken_ratio</span> <span class="o">=</span> <span class="n">broken_count</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="n">records_count</span><span class="p">)</span>
+
+<span class="n">w7_json</span> <span class="o">=</span> <span class="n">finalize_data</span><span class="p">(</span><span class="n">collapsed_w7</span><span class="p">,</span> <span class="n">windows7_count</span><span class="p">,</span> <span class="n">broken_ratio</span><span class="p">)</span>
+<span class="n">json_entry</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">w7_json</span><span class="p">)</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"w7data.json"</span><span class="p">,</span> <span class="s2">"w"</span><span class="p">)</span> <span class="k">as</span> <span class="n">json_file</span><span class="p">:</span>
+    <span class="n">json_file</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">"["</span> <span class="o">+</span> <span class="n">json_entry</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s1">'utf8'</span><span class="p">)</span> <span class="o">+</span> <span class="s2">"]</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+
+
+<span class="n">w10_json</span> <span class="o">=</span> <span class="n">finalize_data</span><span class="p">(</span><span class="n">collapsed_w10</span><span class="p">,</span> <span class="n">windows10_count</span><span class="p">,</span> <span class="n">broken_ratio</span><span class="p">)</span>
+<span class="n">json_entry</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">w10_json</span><span class="p">)</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"w10data.json"</span><span class="p">,</span> <span class="s2">"w"</span><span class="p">)</span> <span class="k">as</span> <span class="n">json_file</span><span class="p">:</span>
+    <span class="n">json_file</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">"["</span> <span class="o">+</span> <span class="n">json_entry</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s1">'utf8'</span><span class="p">)</span> <span class="o">+</span> <span class="s2">"]</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+</pre></div>
+<div class="codehilite"><pre><span></span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+</div></body></html>
+<div>
+
+</div>
+
+
+<br/>
+<div class="row">
+<div class="col-md-12">
+</div>
+</div>
+
+
+
+
+<script type="text/javascript">
+            $("#searchbar")[0].setSelectionRange(1000, 1000);
+
+            $('#searchbar').typeahead({
+                hint: false,
+                highlight: true,
+                minLength: 1
+              },
+              {
+                name: 'knowledge_posts',
+                limit: 10,
+                display: function (item) {
+                  return item.title + " - " + item.author;
+                },
+                templates: {
+                  empty: Handlebars.compile(
+                    '<div class="tt-not-found">' +
+                      'Unable to find any posts that match the current query' +
+                      '</div>'
+                  ),
+                  suggestion: function(data) {
+                    return '<p style="overflow-wrap:break-word"><strong class="text-rausch">' + data.title + '</strong> – ' + data.author + '</p>';
+                  }
+                },
+                source: function(q, sync, async) {
+                  $.ajax('/ajax/index/typeahead?search=' + q,
+                  {
+                    success: function(data,status){ async(JSON.parse(data)); }
+                  })
+                }
+              });
+
+
+            $('#searchbar').bind('typeahead:select', function(obj, datum, name) {
+              window.location = '/post/'+encodeURIComponent(datum.path);
+            });
+
+            $('#searchbar').keypress(function(event){
+              var keycode = (event.keyCode ? event.keyCode : event.which);
+              if(keycode == '13'){
+                var path = document.location.pathname;
+                window.location = '/feed?filters=' + $('#searchbar').val()
+              }
+            });
+
+            var padding = $('.tt-menu').outerWidth()
+            $('.tt-menu').width($('#searchbar').width() + padding + "px")
+
+        </script>
+<script src="https://reports.telemetry.mozilla.org/static/js/tooltips.js" type="text/javascript"></script>
+<script type="text/javascript">
+$("document").ready(function(){
+  var is_webeditor = false;
+  
+  var post_id = "27";
+  var id = "None";
+  var post_path = "projects/windows_hwreport.kp"
+  var data_repo_github_root = ""
+  tooltipsJx.initializeTooltips(is_webeditor, post_id, id, data_repo_github_root);
+
+  $(".btn-rendered").on("click", function(){
+    document.location.href = "/post/" + encodeURI(post_path);
+  })
+
+  $(".btn-raw").on("click", function(){
+    document.location.href = "/post/" + encodeURI(post_path) + "?render=raw";
+  })
+
+  $(".btn-webeditor").on("click", function(){
+    document.location.href = "/edit/" + encodeURI(post_path);
+  })
+});
+
+</script>
+<script src="https://reports.telemetry.mozilla.org/static/js/helpers.js"></script>
+<script src="https://reports.telemetry.mozilla.org/static/js/tags.js" type="text/javascript"></script>
+<script src="https://reports.telemetry.mozilla.org/static/js/icons.js" type="text/javascript"></script>
+<script src="https://reports.telemetry.mozilla.org/static/js/comments.js" type="text/javascript"></script>
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({
+    extensions: ["tex2jax.js"],
+    jax: ["input/TeX", "output/HTML-CSS"],
+    tex2jax: {
+      inlineMath: [ ['$','$'], ["\\(","\\)"] ],
+      displayMath: [ ['$$','$$'], ["\\[","\\]"] ],
+      processEscapes: true
+    },
+    "HTML-CSS": { availableFonts: ["TeX"] }
+  });
+</script>
+<script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js" type="text/javascript">
+</script>
+<script>
+$(document).on('ready', function(){
+  // Make the Rendered Markdown Button active
+  $(".btn-rendered").addClass("btn-active");
+
+  // Initialize headers
+  helpersJx.linkifyHeaders();
+
+  // Initialize comments
+  var post_path = 'projects/windows_hwreport.kp';
+
+  $("#post_comment_btn").on('click', function(){
+      comment_author = 'knowledge_default';
+      post_author = 'Alessio Placitelli';
+      post_title = 'Hardware Report for Windows 7 and Windows 10 users.';
+      commentsJx.postComment(comment_author, post_author, post_title, post_path);
+      location.reload();
+  });
+
+  all_comment_delete_buttons = $("[id^=delete_comment]")
+  $.each(all_comment_delete_buttons, function(i,v){
+      $(v).on("click", function(){
+          var id = v.id;
+          var comment_id = id.split("__")[1];
+          if(comment_id) {
+            commentsJx.deleteComment(post_path, comment_id)
+            location.reload();
+          }
+      });
+  });
+  $(document.body).on('click',"button[id^=tag-subscription]",function () {
+    tagsJx.addTagSubscriptionListener($(this)[0]);
+  });
+})
+
+//Turn all the headers to be links
+//h1 = Title, don't want that
+var all_headers = [$("h2"), $("h3"), $("h4"), $("h5"), $("h6")]
+$.each(all_headers, function(index, value){
+  $.each(value, function(i, v){
+    var inner_html = v.innerHTML
+    inner_html_no_special = inner_html.replace(/[^a-zA-Z\- ]/g, "")
+    var inner_link = "#" + inner_html_no_special.toLowerCase().split(" ").join("-")
+    v.innerHTML = "<a href='" + inner_link + "' class=link-reset>" + inner_html + "</a>"
+  })
+})
+
+//turn all the tags into links, similar to what's done on the feed page
+var tags = $("#renderedMarkdown .metadata .tags")[0]
+var tags_list = ['hardware report', 'windows']
+var subscriptions_list = []
+$.each(tags_list, function(i,tag){
+  ahref = document.createElement("a")
+  e_tag = encodeURIComponent(tag)
+  f_tag = tag.replace("/", "__")
+  tag_name = "#" + tag
+  tag_subscription_button_id_name = "tag-subscription-" + i + "__" + f_tag
+  ahref.setAttribute("data-container", "body")
+  ahref.setAttribute("data-toggle", "popover")
+  ahref.setAttribute("data-placement", "bottom")
+  ahref.setAttribute("data-html", "true")
+  ahref.setAttribute("data-tag-name", f_tag)
+  if (subscriptions_list.indexOf(tag) >= 0) {
+    ahref.setAttribute("class", "label label-subscribed pop")
+    ahref.setAttribute("data-content", "<div class='content'>" +
+                  " <button class='btn btn-small btn-primary btn-unsubscribe'" +
+                        " title='' " +
+                          " id='" + tag_subscription_button_id_name + "'> " +
+                    " <i class='glyphicon glyphicon-remove-sign glyphicon-white'></i>Unsubscribe " +
+                  " </button> " +
+                  " </div>")
+  } else {
+    ahref.setAttribute("class", "label label-unsubscribed pop")
+    ahref.setAttribute("data-content", "<div class='content'>" +
+                  " <button class='btn btn-small btn-default btn-subscribe'" +
+                        " title='' " +
+                          " id='" + tag_subscription_button_id_name + "'> " +
+                    " <i class='glyphicon glyphicon-ok-sign glyphicon-filled'></i>Subscribe " +
+                  " </button> " +
+                  " </div>")
+  }
+  ahref.setAttribute("href", "/tag_pages?tag=" + e_tag)
+  ahref.setAttribute("style", "font-weight:normal")
+  if (i == 0){
+    ahref.innerHTML = " "
+    colon = document.createElement("text")
+    colon.innerHTML = "<b>Tags</b>: "
+    tags.appendChild(colon)
+  }
+  ahref.innerHTML = ahref.innerHTML + tag_name
+  tags.appendChild(ahref)
+  if (i != tags_list.length - 1){
+    comma = document.createElement("text")
+    comma.innerText = ", "
+    tags.appendChild(comma)
+  }
+})
+tags.nextSibling.remove()
+
+tags.innerHTML += "<i class='glyphicon glyphicon-edit icon-gray' style='font-size:12pt; padding-left:4px' id='tooltip-edit_tags'></i>"
+
+$(".pop").popover({ trigger: "manual" , html: true, animation:false, delay: 100})
+  .on("mouseenter", function () {
+      var _this = this;
+      $(this).popover("show");
+      $(".popover").on("mouseleave", function () {
+          $(_this).popover('hide');
+      });
+  }).on("mouseleave", function () {
+      var _this = this;
+      setTimeout(function () {
+          if (!$(".popover:hover").length) {
+              $(_this).popover("hide");
+          }
+      }, 300);
+});
+
+$('#tooltip-edit_tags').click(function(){
+  $('#tooltip-edit_tags')[0].setAttribute("style", "display:none")
+  previousSibling = $("#tooltip-edit_tags")[0].previousSibling
+  tags_string = tags_list.join(", ")
+  form = document.createElement("form")
+  input = document.createElement("input")
+  tags_text = document.createElement("text")
+  icon_class = document.createElement("i")
+  icon_class.setAttribute("class", "glyphicon glyphicon-upload icon-gray")
+  icon_class.setAttribute("style", "font-size:23px; padding-left:4px")
+  icon_class.setAttribute("id", "tooltip-save_tags")
+  tags_text.innerText = "Tags: "
+  input.setAttribute('type', 'text')
+  input.setAttribute('name', 'tags_list')
+  input.setAttribute('value', tags_string)
+  input.setAttribute('style', 'width:75%; display: inline-block')
+  input.setAttribute('id' , 'change_tags')
+  form.appendChild(tags_text)
+  tags.textContent = " "
+  form.appendChild(input)
+  form.appendChild(icon_class)
+  tags.appendChild(form)
+
+
+  $("#tooltip-save_tags").click(function(){
+    tags_string = $("#change_tags")[0].value
+    tags_list = tags_string.split(",")
+
+    var re = /^[a-z0-9\-\_\:\/]+$/i
+    var good = true
+    for (var i = 0; i < tags_list.length; i++){
+      tag = tags_list[i]
+      if (tag.length == 0){
+        alert("There is a tag with length 0 - possible a trailing comma?")
+        good = false
+        break
+      } else {
+        tag_name = tag.trim()
+        if (!(re.test(tag_name))){
+           alert("The tag contains special characters. Make sure there are only alphanumeric characters in your tag")
+           good = false
+           break
+        }
+      }
+    }
+    if (good) {
+    var postContent = {}
+      postContent['tags'] = tags_string
+      $.ajax({
+        type: "POST",
+        dataType: "json",
+        data: JSON.stringify(postContent),
+        contentType: "application/json",
+        url: '/tag_list?post_path=projects/windows_hwreport.kp',
+        async: false
+      });
+      location.reload()
+    }
+  })
+
+  tags.nextSibling.remove()
+
+  // Allow user to edit tags
+  var edit_icon = iconsJx.createEditTagsIcon();
+  $(tags).after(edit_icon);
+
+  $("#tooltip-edit_tags").on("click", function(){
+      var edit_tooltip = $("#tooltip-edit_tags");
+      edit_tooltip.attr("style", "display:none");
+
+      var tags_string = tags_list.join(", ");
+      var form = $("<form>");
+      var input = $("<input>");
+
+      var tags_text = $("<text>");
+      tags_text.html("Tags: ");
+
+
+      var icon = iconsJx.createSaveTagsIcon();
+
+      input.attr("type", "text");
+      input.attr("name", "tags_list");
+      input.attr("style", "width:75%; display: inline-block");
+      input.attr("id", "change_tags");
+
+      form.append(tags_text);
+      tags.textContent = " ";
+      tags_text.innerHTML = "Tags: ";
+      form.append(input);
+      form.append(icon);
+      tags.appendChild(form[0]);
+      $("#change_tags")[0].value = tags_string;
+
+
+      $("#change_tags").keypress(function(e){
+          if (e.which == 13){
+              var tags_string = $("#change_tags")[0].value;
+              var post_path = "projects/windows_hwreport.kp";
+              tagsJx.changeAndSaveTags(post_path, tags_string);
+              return false;
+          };
+      });
+
+
+      $("#tooltip-save_tags").click(function(){
+          var tags_string = $("#change_tags")[0].value;
+          var post_path = "projects/windows_hwreport.kp";
+          tagsJx.changeAndSaveTags(post_path, tags_string);
+      });
+
+       $("form").submit(function(){
+          var tags_string = $("#change_tags")[0].value;
+          var post_path = "projects/windows_hwreport.kp";
+          tagsJx.changeAndSaveTags(post_path, tags_string);
+          return false
+      })
+  });
+
+});
+
+</script>
+
+

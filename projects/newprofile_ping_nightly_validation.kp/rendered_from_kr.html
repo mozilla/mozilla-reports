@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html>
+
+    <head>
+        <meta charset="utf-8">
+
+        <title> Knowledge </title>
+
+        <!-- js includes at the top as post embedded js colliding -->
+        <script src="/static/modules/jquery/jquery.min.js"></script>
+        <script src="/static/modules/tether/js/tether.min.js"></script>
+        <script src="/static/modules/bootstrap/js/bootstrap.min.js"></script>
+        <script src="/static/modules/bootstrap-slider/js/bootstrap-slider.min.js"></script>
+        <script src="/static/modules/typeahead.js/typeahead.bundle.min.js"></script>
+        <script src="/static/modules/handlebars/js/handlebars.js"></script>
+        <script src="/static/js/helpers.js"></script>
+        <script src="/static/modules/select2/js/select2.min.js"></script>
+        <script src="/static/modules/hightlight.pack.js/highlight.pack.js"></script>
+        <script src="/static/modules/marked.js/marked.js"></script>
+
+        <!-- require js is used for plotly, but has a bunch of collisions with other js packages
+             make sure to have it be last js package imported -->
+        <script src="/static/modules/require.js/require.min.js"></script>
+
+        <!--[if lt IE 9]>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/html5shiv/3.6.2/html5shiv.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/es5-shim/2.1.0/es5-shim.min.js"></script>
+        <![endif]-->
+        <link rel="stylesheet" href="/static/modules/bootstrap/css/bootstrap.min.css">
+        <link rel="stylesheet" href="/static/modules/bootstrap-slider/css/bootstrap-slider.min.css">
+        <link rel="stylesheet" type='text/css' href="/static/css/custom.css">
+        <link rel="stylesheet" type='text/css' href="/static/modules/select2/css/select2.min.css">
+        <link href='https://fonts.googleapis.com/css?family=Lato:400,900|Playfair+Display|Source+Serif+Pro:400,700' rel='stylesheet' type='text/css'>
+        <link rel="shortcut icon" href="/static/images/favicon.png">
+
+        
+<link rel="stylesheet" href="/static/css/codehilite-friendly.css">
+
+        <style>
+            .spinner {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                margin-left: -50px; /* half width of the spinner gif */
+                margin-top: -50px; /* half height of the spinner gif */
+                text-align:center;
+                z-index:1234;
+                overflow: auto;
+                width: 100px; /* width of the spinner gif */
+                height: 102px; /*hight of the spinner gif +2px to fix IE8 issue */
+            }
+
+            .table {
+              font-size: 14px;
+            }
+
+            .modal-content {
+              max-width: 1024px;
+            }
+
+             
+
+          </style>
+
+
+    </head>
+
+
+    <body>
+
+        <div class="navbar navbar-knowledge" role="navigation">
+            <div class="container page-container">
+                <a  href="/" aria-selected="false" class="logo-image navbar-text" style='margin-top:16px; margin-left: -7px'>
+                    <img width="125" src='/static/images/logo-white.svg'></img>
+                </a>
+                <a id="feed_tab" href="/" aria-selected="false" class="navbar-text" style='margin-top:18px'>
+                    Home
+                </a>
+                <a id="favorites_tab" href="/favorites" aria-selected="false" class="navbar-text" style='margin-top:18px'>
+                    Favorites
+                </a>
+                <a id="help_tab" href="/about" aria-selected="false" class="navbar-text" style='margin-top:18px'>
+                    About
+                </a>
+                <a id="stats_tab" href="/stats" aria-selected="false" class="navbar-text" style='margin-top:18px'>
+                    Stats
+                </a>
+                <a id="webposts_tab" href="/create"
+                   class="btn btn-primary navbar-text pull-right"
+                   style='border-radius:4px; margin-top:10px; margin-right:-10px; background-color: #00a699; color:white; border-color: #00a699'>
+                    Write a Post!
+                </a>
+                <div class="pull-right">
+                    <div class="form-group">
+                        <input class="form-control" id="searchbar" placeholder="Search for Knowledge" style="text-align:right">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="container page-container">
+
+            
+
+    
+
+    <br>
+    <div class="container-fluid">
+      <div class="row">
+        <div class="col-md-6">
+          <div class="btn-group" role="group">
+            <button type="button" class="btn btn-default btn-rendered">
+              View Post
+            </button>
+            <button type="button" class="btn btn-default btn-raw">
+              View Raw Markdown
+            </button>
+            
+          </div>
+        </div>
+        <div class="col-md-2">
+        </div>
+        <div class="col-md-4 text-right">
+          
+            <i class="glyphicon glyphicon-eye-open" id="pageview_stats" style='color: #9CA299'></i>
+            <div id="pageview_stats" style="display: inline-block">
+              Viewed 2 times by 1 different users
+            </div>
+          
+          
+            <i class="glyphicon glyphicon-heart-empty glyphicon-clickable pop" style="font-size:16pt" id="tooltip-like" data-placement="bottom"
+             data-trigger="#tooltip-like"
+             data-container="body"
+             data-toggle="popover"
+             data-content='<div>Like This Post</div>'></i>
+          
+          
+        </div>
+      </div>
+      <div class="row col-md-12">
+        
+        
+      </div>
+    </div>
+
+
+    <div class='container-fluid'>
+        <div class="row">
+            <div class="col-md-12">
+                <div id="renderedMarkdown">
+                    
+    <div class='metadata'>
+    <h1>new-profile ping validation on Nightly</h1>
+    <span class='authors'><a href='/feed?authors=dexter'>dexter</a></span>
+    <span class='date_created'>June 07, 2017</span>
+    <span class='date_updated'>(Last Updated: June 12, 2017)</span>
+    <span class='tldr'><p>This notebook verifies that the &lsquo;new-profile&rsquo; ping behaves as expected on the Nightly channel.</p></span>
+    <span class='tags'></span>
+    </div>
+    <h1 id="validate-new-profile-submissions-on-nightly">Validate &lsquo;new-profile&rsquo; submissions on Nightly</h1>
+<p>This analysis validates the &lsquo;new-profile&rsquo; pings submitted by Nightly builds for one week since the &lsquo;new-profile&rsquo; ping was enabled <a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1364068">in bug 1364068</a>. We are going to verify that:</p>
+<ul>
+<li>the install ping is received within a reasonable time after the profile creation;</li>
+<li>we receive one ping per client;</li>
+<li>we don&rsquo;t receive many duplicates overall.</li>
+</ul>
+<div class="codehilite"><pre><span></span><span class="kn">import</span> <span class="nn">ujson</span> <span class="kn">as</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="kn">as</span> <span class="nn">plt</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="kn">as</span> <span class="nn">pd</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">plotly.plotly</span> <span class="kn">as</span> <span class="nn">py</span>
+<span class="kn">import</span> <span class="nn">IPython</span>
+
+<span class="kn">from</span> <span class="nn">plotly.graph_objs</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">moztelemetry</span> <span class="kn">import</span> <span class="n">get_pings_properties</span><span class="p">,</span> <span class="n">get_one_ping_per_client</span>
+<span class="kn">from</span> <span class="nn">moztelemetry.dataset</span> <span class="kn">import</span> <span class="n">Dataset</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">timedelta</span>
+
+<span class="o">%</span><span class="n">matplotlib</span> <span class="n">inline</span>
+<span class="n">IPython</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">pylabtools</span><span class="o">.</span><span class="n">figsize</span><span class="p">(</span><span class="mi">16</span><span class="p">,</span> <span class="mi">7</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span>Unable to parse whitelist: /mnt/anaconda2/lib/python2.7/site-packages/moztelemetry/histogram-whitelists.json.
+Assuming all histograms are acceptable.
+</pre></div>
+
+
+<p>We&rsquo;ll be looking at the pings that have been coming in since the 31st May 2017 to the 7th June 2017.  </p>
+<div class="codehilite"><pre><span></span><span class="c1"># Note that the &#39;new-profile&#39; ping needs to use underscores in the Dataset API due to bug.</span>
+<span class="n">pings</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">from_source</span><span class="p">(</span><span class="s2">&quot;telemetry&quot;</span><span class="p">)</span> \
+    <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">docType</span><span class="o">=</span><span class="s1">&#39;new_profile&#39;</span><span class="p">)</span> \
+    <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">appUpdateChannel</span><span class="o">=</span><span class="s2">&quot;nightly&quot;</span><span class="p">)</span> \
+    <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">submissionDate</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="s2">&quot;20170531&quot;</span> <span class="o">&lt;=</span> <span class="n">x</span> <span class="o">&lt;</span> <span class="s2">&quot;20170607&quot;</span><span class="p">)</span> \
+    <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">appBuildId</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="s2">&quot;20170531&quot;</span> <span class="o">&lt;=</span> <span class="n">x</span> <span class="o">&lt;</span> <span class="s2">&quot;20170607&quot;</span><span class="p">)</span> \
+    <span class="o">.</span><span class="n">records</span><span class="p">(</span><span class="n">sc</span><span class="p">,</span> <span class="n">sample</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span>fetching 5.53331MB in 1438 files...
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span><span class="n">ping_count</span> <span class="o">=</span> <span class="n">pings</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
+<span class="n">ping_count</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span>3840
+</pre></div>
+
+
+<h3 id="how-many-pings-were-sent-in-session-and-how-many-at-shutdown">How many pings were sent in-session and how many at shutdown?</h3>
+<p>The <code>new-profile</code> ping can be sent either during the browsing session, 30 minutes after the browser starts, or at shutdown (<a href="https://gecko.readthedocs.io/en/latest/toolkit/components/telemetry/telemetry/data/new-profile-ping.html#payload-reason">docs</a>). Let&rsquo;s see how many pings we get in each case.</p>
+<div class="codehilite"><pre><span></span><span class="n">raw_subset</span> <span class="o">=</span> <span class="n">get_pings_properties</span><span class="p">(</span><span class="n">pings</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">,</span>
+                                          <span class="s2">&quot;meta/creationTimestamp&quot;</span><span class="p">,</span>
+                                          <span class="s2">&quot;meta/Date&quot;</span><span class="p">,</span>
+                                          <span class="s2">&quot;meta/Timestamp&quot;</span><span class="p">,</span>
+                                          <span class="s2">&quot;meta/X-PingSender-Version&quot;</span><span class="p">,</span>
+                                          <span class="s2">&quot;clientId&quot;</span><span class="p">,</span>
+                                          <span class="s2">&quot;environment/profile/creationDate&quot;</span><span class="p">,</span>
+                                          <span class="s2">&quot;payload/reason&quot;</span><span class="p">])</span>
+</pre></div>
+
+
+<p>Discard and count any ping that&rsquo;s missing creationTimestamp or Timestamp.</p>
+<div class="codehilite"><pre><span></span><span class="k">def</span> <span class="nf">pct</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+    <span class="k">return</span> <span class="mf">100.0</span> <span class="o">*</span> <span class="n">a</span> <span class="o">/</span> <span class="n">b</span>
+
+<span class="n">subset</span> <span class="o">=</span> <span class="n">raw_subset</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">p</span><span class="p">[</span><span class="s2">&quot;meta/creationTimestamp&quot;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="ow">and</span> <span class="n">p</span><span class="p">[</span><span class="s2">&quot;meta/Timestamp&quot;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">)</span>
+<span class="k">print</span><span class="p">(</span><span class="s2">&quot;&#39;new-profile&#39; pings with missing timestamps:</span><span class="se">\t</span><span class="s2">{:.2f}%&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">pct</span><span class="p">(</span><span class="n">ping_count</span> <span class="o">-</span> <span class="n">subset</span><span class="o">.</span><span class="n">count</span><span class="p">(),</span> <span class="n">ping_count</span><span class="p">)))</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span>&#39;new-profile&#39; pings with missing timestamps:    0.00%
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span><span class="n">reason_counts</span> <span class="o">=</span> <span class="n">subset</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;payload/reason&quot;</span><span class="p">))</span><span class="o">.</span><span class="n">countByValue</span><span class="p">()</span>
+
+<span class="k">for</span> <span class="n">reason</span><span class="p">,</span> <span class="n">count</span> <span class="ow">in</span> <span class="n">reason_counts</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
+    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;&#39;new-profile&#39; pings with reason &#39;{}&#39;:</span><span class="se">\t</span><span class="s2">{:.2f}%&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">reason</span><span class="p">,</span> <span class="n">pct</span><span class="p">(</span><span class="n">count</span><span class="p">,</span> <span class="n">ping_count</span><span class="p">)))</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span>&#39;new-profile&#39; pings with reason &#39;startup&#39;:  24.32%
+&#39;new-profile&#39; pings with reason &#39;shutdown&#39;: 75.68%
+</pre></div>
+
+
+<p>This means that, among all the <code>new-profile</code> pings, the majority was sent at shutdown. This could mean different things:</p>
+<ul>
+<li>the browsing session lasted less than 30 minutes;</li>
+<li>we&rsquo;re receiving duplicate pings at shutdown.</li>
+</ul>
+<h3 id="lets-check-how-many-duplicates-weve-seen">Let&rsquo;s check how many duplicates we&rsquo;ve seen</h3>
+<div class="codehilite"><pre><span></span><span class="k">def</span> <span class="nf">dedupe</span><span class="p">(</span><span class="n">pings</span><span class="p">,</span> <span class="n">duping_key</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">pings</span>\
+            <span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="n">duping_key</span><span class="p">],</span> <span class="n">p</span><span class="p">))</span>\
+            <span class="o">.</span><span class="n">reduceByKey</span><span class="p">(</span><span class="k">lambda</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">a</span> <span class="k">if</span> <span class="n">a</span><span class="p">[</span><span class="s2">&quot;meta/Timestamp&quot;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">b</span><span class="p">[</span><span class="s2">&quot;meta/Timestamp&quot;</span><span class="p">]</span> <span class="k">else</span> <span class="n">b</span><span class="p">)</span>\
+            <span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">pair</span><span class="p">:</span> <span class="n">pair</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+<span class="n">deduped_docid</span> <span class="o">=</span> <span class="n">dedupe</span><span class="p">(</span><span class="n">subset</span><span class="p">,</span> <span class="s2">&quot;id&quot;</span><span class="p">)</span>
+<span class="n">deduped_docid_count</span> <span class="o">=</span> <span class="n">deduped_docid</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
+<span class="n">total_duplicates</span> <span class="o">=</span> <span class="n">ping_count</span> <span class="o">-</span> <span class="n">deduped_docid_count</span>
+<span class="k">print</span><span class="p">(</span><span class="s2">&quot;Duplicate pings percentage (by document id): {:.2f}%&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">pct</span><span class="p">(</span><span class="n">total_duplicates</span><span class="p">,</span> <span class="n">ping_count</span><span class="p">)))</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span>Duplicate pings percentage (by document id): 0.21%
+</pre></div>
+
+
+<p>The 0.21% of ping duplicates is nice, compared to ~1% we usually get from the <code>main</code> and <code>crash</code> pings. However, nowdays we&rsquo;re running de-duplication by document id at the pipeline ingestion, so this might be a bit higher. To check that, we have a <code>telemetry_duplicates_parquet</code> table and <a href="https://sql.telemetry.mozilla.org/queries/4809">this handy query</a> that says 0 duplicates were filtered on the pipeline. This means that our 0.21% is the real duplicate rate for the <code>new-profile</code> ping on Nightly.</p>
+<p>Did we send different pings for the same client id? We shouldn&rsquo;t, as we send at most one &lsquo;new-profile&rsquo; ping per client.</p>
+<div class="codehilite"><pre><span></span><span class="n">deduped_clientid</span> <span class="o">=</span> <span class="n">dedupe</span><span class="p">(</span><span class="n">deduped_docid</span><span class="p">,</span> <span class="s2">&quot;clientId&quot;</span><span class="p">)</span>
+<span class="n">total_duplicates_clientid</span> <span class="o">=</span> <span class="n">deduped_docid_count</span> <span class="o">-</span> <span class="n">deduped_clientid</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
+<span class="k">print</span><span class="p">(</span><span class="s2">&quot;Duplicate pings percentage (by client id): {:.2f}%&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">pct</span><span class="p">(</span><span class="n">total_duplicates_clientid</span><span class="p">,</span> <span class="n">deduped_docid_count</span><span class="p">)))</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span>Duplicate pings percentage (by client id): 0.89%
+</pre></div>
+
+
+<p>That&rsquo;s disappointing: it looks like we&rsquo;re receiving multiple <code>new-profile</code> pings for some clients. Let&rsquo;s dig into this by analysing the set of pings deduped by document id. To have a clearer picture of the problem, let&rsquo;s make sure to aggregate the duplicates ordered by the time they were created on the client.</p>
+<div class="codehilite"><pre><span></span><span class="c1"># Builds an RDD with (&lt;client id&gt;, [&lt;ordered reason&gt;, &lt;ordered reason&gt;, ...])</span>
+<span class="n">clients_with_dupes</span> <span class="o">=</span> <span class="n">deduped_docid</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s2">&quot;clientId&quot;</span><span class="p">],</span> <span class="p">[(</span><span class="n">p</span><span class="p">[</span><span class="s2">&quot;payload/reason&quot;</span><span class="p">],</span> <span class="n">p</span><span class="p">[</span><span class="s2">&quot;meta/creationTimestamp&quot;</span><span class="p">])]))</span>\
+                                  <span class="o">.</span><span class="n">reduceByKey</span><span class="p">(</span><span class="k">lambda</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">a</span> <span class="o">+</span> <span class="n">b</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">k</span><span class="p">:</span> <span class="n">k</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>\
+                                  <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">)</span>\
+                                  <span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">[</span><span class="n">r</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">p</span><span class="p">[</span><span class="mi">1</span><span class="p">]]))</span>
+
+<span class="c1"># Check how often each case occurs.</span>
+<span class="nb">sorted</span><span class="p">(</span><span class="n">clients_with_dupes</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span><span class="o">.</span><span class="n">countByValue</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">k</span><span class="p">:</span> <span class="n">k</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">reverse</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span>[((u&#39;shutdown&#39;, u&#39;shutdown&#39;), 7),
+ ((u&#39;shutdown&#39;, u&#39;startup&#39;), 4),
+ ((u&#39;startup&#39;, u&#39;startup&#39;), 3),
+ ((u&#39;startup&#39;, u&#39;shutdown&#39;), 3),
+ ((u&#39;shutdown&#39;, u&#39;shutdown&#39;, u&#39;shutdown&#39;), 2),
+ ((u&#39;shutdown&#39;, u&#39;shutdown&#39;, u&#39;startup&#39;), 1),
+ ((u&#39;shutdown&#39;, u&#39;startup&#39;, u&#39;shutdown&#39;), 1),
+ ((u&#39;shutdown&#39;,
+   u&#39;shutdown&#39;,
+   u&#39;shutdown&#39;,
+   u&#39;shutdown&#39;,
+   u&#39;shutdown&#39;,
+   u&#39;shutdown&#39;),
+  1),
+ ((u&#39;shutdown&#39;, u&#39;shutdown&#39;, u&#39;shutdown&#39;, u&#39;startup&#39;, u&#39;shutdown&#39;), 1)]
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span><span class="n">collected_clientid_reasons</span> <span class="o">=</span> <span class="n">clients_with_dupes</span><span class="o">.</span><span class="n">collect</span><span class="p">()</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span><span class="n">num_shutdown_dupes</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">([</span><span class="nb">len</span><span class="p">(</span><span class="nb">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="n">e</span> <span class="o">==</span> <span class="s1">&#39;shutdown&#39;</span><span class="p">,</span> <span class="n">t</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">collected_clientid_reasons</span><span class="p">])</span>
+<span class="k">print</span><span class="p">(</span><span class="s2">&quot;Duplicate &#39;shutdown&#39; pings percentage (by client id): {:.2f}%&quot;</span>\
+      <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">pct</span><span class="p">(</span><span class="n">num_shutdown_dupes</span><span class="p">,</span> <span class="n">ping_count</span><span class="p">)))</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span>Duplicate &#39;shutdown&#39; pings percentage (by client id): 1.07%
+</pre></div>
+
+
+<p>The multiple pings we&rsquo;re receiving for the same client id are mostly <code>new-profile</code> pings with reason <code>shutdown</code>. This is not too surprising, as most of the <code>new-profile</code> pings are being sent at shutdown (75%).</p>
+<p>But does the pingsender have anything to do with this? Let&rsquo;s attack the problem like this:</p>
+<ul>
+<li>get a list of the &ldquo;misbehaving&rdquo; clients;</li>
+<li>take a peek at their pings (redact client ids/ids);</li>
+<li>figure out the next steps.</li>
+</ul>
+<div class="codehilite"><pre><span></span><span class="n">count_reason_pingsender</span> <span class="o">=</span> <span class="n">subset</span>\
+                            <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;clientId&quot;</span><span class="p">)</span> <span class="ow">in</span> <span class="n">misbehaving_clients</span><span class="p">)</span>\
+                            <span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;payload/reason&quot;</span><span class="p">),</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;meta/X-PingSender-Version&quot;</span><span class="p">)))</span>\
+                            <span class="o">.</span><span class="n">countByValue</span><span class="p">()</span>
+
+<span class="k">for</span> <span class="n">reason</span><span class="p">,</span> <span class="n">count</span> <span class="ow">in</span> <span class="n">count_reason_pingsender</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;{}:</span><span class="se">\t</span><span class="s2">{}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">reason</span><span class="p">,</span> <span class="n">pct</span><span class="p">(</span><span class="n">count</span><span class="p">,</span> <span class="nb">sum</span><span class="p">(</span><span class="n">count_reason_pingsender</span><span class="o">.</span><span class="n">values</span><span class="p">()))))</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span>(u&#39;startup&#39;, None): 27.5862068966
+(u&#39;shutdown&#39;, u&#39;1.0&#39;):  55.1724137931
+(u&#39;shutdown&#39;, None):    17.2413793103
+</pre></div>
+
+
+<p>Looks like some of these pings are missing the pingsender header from the request. While this is expected for <code>new-profile</code> pings with reason <code>startup</code>, as they are being sent while Firefox is still active, there might be reasons why this also happens at shutdown:</p>
+<ul>
+<li>that they are not being sent from the pingsender, even though they are generated at shutdown: the pingsender might have failed due to network problems/server problems and Firefox picked them up at the next restart; in this case they would have the same document id;</li>
+<li>that we generated a new-profile ping at shutdown, but failed to mark it as &lsquo;generated&rsquo;, and so we received more than one with a different document id.</li>
+</ul>
+<p>This leads to other questions:</p>
+<ul>
+<li>How often do we send new-profile pings at shutdown, fail, and then send them again without the pingsender?</li>
+<li>Does that correlate with the duplicates?</li>
+</ul>
+<div class="codehilite"><pre><span></span><span class="n">newprofile_shutdown_from_bad_clients</span> <span class="o">=</span>\
+    <span class="n">subset</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;payload/reason&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;shutdown&#39;</span><span class="p">)</span>\
+          <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;clientId&quot;</span><span class="p">)</span> <span class="ow">in</span> <span class="n">misbehaving_clients</span><span class="p">)</span>
+
+<span class="n">newprofile_shutdown_from_good_clients</span> <span class="o">=</span>\
+    <span class="n">subset</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;payload/reason&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;shutdown&#39;</span><span class="p">)</span>\
+          <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;clientId&quot;</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">misbehaving_clients</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span><span class="n">newprofile_shutdown_from_bad_clients</span>\
+    <span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;meta/X-PingSender-Version&quot;</span><span class="p">))</span><span class="o">.</span><span class="n">countByValue</span><span class="p">()</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span>defaultdict(int, {None: 10, u&#39;1.0&#39;: 32})
+</pre></div>
+
+
+<p>This is telling us that most of the shutdown <code>new-profile</code> pings are coming from the pingsender, about 76%.</p>
+<div class="codehilite"><pre><span></span><span class="n">newprofile_shutdown_from_good_clients</span>\
+    <span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;meta/X-PingSender-Version&quot;</span><span class="p">))</span><span class="o">.</span><span class="n">countByValue</span><span class="p">()</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span>defaultdict(int, {None: 528, u&#39;1.0&#39;: 2336})
+</pre></div>
+
+
+<p>This is still true with well-behaved clients, as 81% of the same pings are coming with the pingsender. The pingsender doesn&rsquo;t seem to be the issue here: if we generate a ping at shutdown and try to send it with the pingsender, and fail, then it&rsquo;s normal for Firefox to pick it back up and send it. As long as we don&rsquo;t generate a new, different, <code>new-profile</code> ping for the same client.</p>
+<h3 id="does-the-profilecreationdate-match-the-date-we-received-the-pings">Does the profileCreationDate match the date we received the pings?</h3>
+<div class="codehilite"><pre><span></span><span class="k">def</span> <span class="nf">datetime_from_daysepoch</span><span class="p">(</span><span class="n">days_from_epoch</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">1970</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="n">days_from_epoch</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">datetime_from_nanosepoch</span><span class="p">(</span><span class="n">nanos_from_epoch</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">datetime</span><span class="o">.</span><span class="n">fromtimestamp</span><span class="p">(</span><span class="n">nanos_from_epoch</span> <span class="o">/</span> <span class="mf">1000.0</span> <span class="o">/</span> <span class="mf">1000.0</span> <span class="o">/</span> <span class="mf">1000.0</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">get_times</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+    <span class="n">profile_creation</span> <span class="o">=</span> <span class="n">datetime_from_daysepoch</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s2">&quot;environment/profile/creationDate&quot;</span><span class="p">])</span>\
+                            <span class="k">if</span> <span class="n">p</span><span class="p">[</span><span class="s2">&quot;environment/profile/creationDate&quot;</span><span class="p">]</span> <span class="k">else</span> <span class="bp">None</span>
+    <span class="n">ping_creation</span> <span class="o">=</span> <span class="n">datetime_from_nanosepoch</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s2">&quot;meta/creationTimestamp&quot;</span><span class="p">])</span>
+    <span class="n">ping_recv</span> <span class="o">=</span> <span class="n">datetime_from_nanosepoch</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s2">&quot;meta/Timestamp&quot;</span><span class="p">])</span>
+
+    <span class="k">return</span> <span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">],</span> <span class="n">profile_creation</span><span class="p">,</span> <span class="n">ping_creation</span><span class="p">,</span> <span class="n">ping_recv</span><span class="p">)</span>
+
+<span class="n">ping_times</span> <span class="o">=</span> <span class="n">deduped_clientid</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">get_times</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span><span class="n">ping_creation_delay_days</span> <span class="o">=</span> <span class="n">ping_times</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">p</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">)</span>\
+                                     <span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="nb">abs</span><span class="p">((</span><span class="n">p</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">date</span><span class="p">()</span> <span class="o">-</span> <span class="n">p</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">date</span><span class="p">())</span><span class="o">.</span><span class="n">days</span><span class="p">))</span><span class="o">.</span><span class="n">collect</span><span class="p">()</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span><span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">&quot;The distribution of the days between the profile creationDate and the &#39;new-profile&#39; ping creation date&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s2">&quot;Difference in days&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s2">&quot;Frequency&quot;</span><span class="p">)</span>
+
+<span class="n">CLIP_DAY</span> <span class="o">=</span> <span class="mi">30</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xticks</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">CLIP_DAY</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">ping_creation_delay_days</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">CLIP_DAY</span><span class="p">),</span>
+         <span class="n">alpha</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">bins</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Delays&quot;</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span>(array([  2.84000000e+03,   4.00000000e+01,   0.00000000e+00,
+          1.50000000e+01,   0.00000000e+00,   2.70000000e+01,
+          2.20000000e+01,   0.00000000e+00,   2.70000000e+01,
+          0.00000000e+00,   3.40000000e+01,   3.80000000e+01,
+          0.00000000e+00,   3.20000000e+01,   0.00000000e+00,
+          3.40000000e+01,   3.40000000e+01,   0.00000000e+00,
+          4.00000000e+01,   0.00000000e+00,   2.90000000e+01,
+          2.90000000e+01,   0.00000000e+00,   3.40000000e+01,
+          0.00000000e+00,   2.00000000e+01,   2.50000000e+01,
+          0.00000000e+00,   3.30000000e+01,   0.00000000e+00,
+          1.40000000e+01,   2.00000000e+01,   0.00000000e+00,
+          1.50000000e+01,   0.00000000e+00,   1.50000000e+01,
+          8.00000000e+00,   0.00000000e+00,   8.00000000e+00,
+          0.00000000e+00,   4.00000000e+00,   2.00000000e+00,
+          0.00000000e+00,   1.00000000e+00,   0.00000000e+00,
+          2.00000000e+00,   3.00000000e+00,   0.00000000e+00,
+          1.00000000e+00,   3.51000000e+02]),
+ array([  0. ,   0.6,   1.2,   1.8,   2.4,   3. ,   3.6,   4.2,   4.8,
+          5.4,   6. ,   6.6,   7.2,   7.8,   8.4,   9. ,   9.6,  10.2,
+         10.8,  11.4,  12. ,  12.6,  13.2,  13.8,  14.4,  15. ,  15.6,
+         16.2,  16.8,  17.4,  18. ,  18.6,  19.2,  19.8,  20.4,  21. ,
+         21.6,  22.2,  22.8,  23.4,  24. ,  24.6,  25.2,  25.8,  26.4,
+         27. ,  27.6,  28.2,  28.8,  29.4,  30. ]),
+ &lt;a list of 50 Patch objects&gt;)
+</pre></div>
+
+
+<p><img alt="png" src="data:image/png;base64, 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" /></p>
+<div class="codehilite"><pre><span></span><span class="n">np</span><span class="o">.</span><span class="n">percentile</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">ping_creation_delay_days</span><span class="p">),</span> <span class="p">[</span><span class="mi">50</span><span class="p">,</span> <span class="mi">70</span><span class="p">,</span> <span class="mi">80</span><span class="p">,</span> <span class="mi">95</span><span class="p">,</span> <span class="mi">99</span><span class="p">])</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span>array([    0. ,     0. ,     7. ,   385.6,  1294.2])
+</pre></div>
+
+
+<p>The plot shows that most of the creation dates for <code>new-profile</code> pings match exactly with the date reported in the environment, <code>creationDate</code>. That&rsquo;s good, as this ping should be created very close to the profile creation. The percentile computation confirms that&rsquo;s true for 70% of the <code>new-profile</code> pings.</p>
+<p>However, things get tricky. The <code>new-profile</code> ping was enabled on the 30th of May, 2017 and should only be sent my new profiles. A delay longer than 7 days suggests that either the profile <code>creationDate</code> is terribly wrong or that we&rsquo;re sending the <code>new-profile</code> ping from existing profiles as well.</p>
+<h3 id="cross-check-the-new-profile-and-main-pings">Cross-check the <code>new-profile</code> and <code>main</code> pings</h3>
+<div class="codehilite"><pre><span></span><span class="n">main_pings</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">from_source</span><span class="p">(</span><span class="s2">&quot;telemetry&quot;</span><span class="p">)</span> \
+                    <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">docType</span><span class="o">=</span><span class="s1">&#39;main&#39;</span><span class="p">)</span> \
+                    <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">appUpdateChannel</span><span class="o">=</span><span class="s2">&quot;nightly&quot;</span><span class="p">)</span> \
+                    <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">submissionDate</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="s2">&quot;20170531&quot;</span> <span class="o">&lt;=</span> <span class="n">x</span> <span class="o">&lt;</span> <span class="s2">&quot;20170607&quot;</span><span class="p">)</span> \
+                    <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">appBuildId</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="s2">&quot;20170531&quot;</span> <span class="o">&lt;=</span> <span class="n">x</span> <span class="o">&lt;</span> <span class="s2">&quot;20170607&quot;</span><span class="p">)</span> \
+                    <span class="o">.</span><span class="n">records</span><span class="p">(</span><span class="n">sc</span><span class="p">,</span> <span class="n">sample</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span>fetching 23348.80037MB in 8027 files...
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span><span class="n">main_subset</span> <span class="o">=</span> <span class="n">get_pings_properties</span><span class="p">(</span><span class="n">main_pings</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">,</span>
+                                                <span class="s2">&quot;meta/creationTimestamp&quot;</span><span class="p">,</span>
+                                                <span class="s2">&quot;meta/Date&quot;</span><span class="p">,</span>
+                                                <span class="s2">&quot;meta/Timestamp&quot;</span><span class="p">,</span>
+                                                <span class="s2">&quot;meta/X-PingSender-Version&quot;</span><span class="p">,</span>
+                                                <span class="s2">&quot;clientId&quot;</span><span class="p">,</span>
+                                                <span class="s2">&quot;environment/profile/creationDate&quot;</span><span class="p">,</span>
+                                                <span class="s2">&quot;payload/info/reason&quot;</span><span class="p">,</span>
+                                                <span class="s2">&quot;payload/info/sessionLength&quot;</span><span class="p">,</span>
+                                                <span class="s2">&quot;payload/info/subsessionLength&quot;</span><span class="p">,</span>
+                                                <span class="s2">&quot;payload/info/profileSubsessionCounter&quot;</span><span class="p">,</span>
+                                                <span class="s2">&quot;payload/info/previousSessionId&quot;</span><span class="p">])</span>
+</pre></div>
+
+
+<p>Dedupe by document id and restrict the <code>main</code> ping data to the pings from the misbehaving and well behaving clients.</p>
+<div class="codehilite"><pre><span></span><span class="n">well_behaving_clients</span> <span class="o">=</span>\
+    <span class="nb">set</span><span class="p">(</span><span class="n">subset</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;clientId&quot;</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">misbehaving_clients</span><span class="p">)</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;clientId&quot;</span><span class="p">))</span><span class="o">.</span><span class="n">collect</span><span class="p">())</span>
+
+<span class="n">all_clients</span> <span class="o">=</span> <span class="n">misbehaving_clients</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">well_behaving_clients</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span><span class="n">main_deduped</span> <span class="o">=</span> <span class="n">dedupe</span><span class="p">(</span><span class="n">main_subset</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;clientId&quot;</span><span class="p">)</span> <span class="ow">in</span> <span class="n">all_clients</span><span class="p">),</span> <span class="s2">&quot;id&quot;</span><span class="p">)</span>
+<span class="n">main_deduped_count</span> <span class="o">=</span> <span class="n">main_deduped</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
+</pre></div>
+
+
+<p>Try to pair each <code>new-profile</code> ping with reason <code>shutdown</code> to the very first <code>main</code> ping with reason <code>shutdown</code> received from that client, to make sure that the former were sent at the right time.</p>
+<div class="codehilite"><pre><span></span><span class="n">first_main</span> <span class="o">=</span> <span class="n">main_deduped</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span>\
+                                    <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;payload/info/previousSessionId&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="bp">None</span> <span class="ow">and</span>\
+                                    <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;payload/info/reason&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;shutdown&quot;</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span><span class="n">newping_shutdown</span> <span class="o">=</span> <span class="n">deduped_docid</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;payload/reason&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;shutdown&quot;</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span><span class="n">newprofile_plus_main</span> <span class="o">=</span> <span class="n">first_main</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="n">newping_shutdown</span><span class="p">)</span>
+<span class="n">sorted_per_client</span> <span class="o">=</span> <span class="n">newprofile_plus_main</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s2">&quot;clientId&quot;</span><span class="p">],</span> <span class="p">[(</span><span class="n">p</span><span class="p">,</span> <span class="n">p</span><span class="p">[</span><span class="s2">&quot;meta/creationTimestamp&quot;</span><span class="p">])]))</span>\
+                                        <span class="o">.</span><span class="n">reduceByKey</span><span class="p">(</span><span class="k">lambda</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">a</span> <span class="o">+</span> <span class="n">b</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">k</span><span class="p">:</span> <span class="n">k</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>\
+                                        <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">)</span>\
+                                        <span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">[</span><span class="n">r</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">p</span><span class="p">[</span><span class="mi">1</span><span class="p">]]))</span>
+<span class="n">num_analysed_clients</span> <span class="o">=</span> <span class="n">sorted_per_client</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span><span class="n">HALF_HOUR_IN_S</span> <span class="o">=</span> <span class="mi">30</span> <span class="o">*</span> <span class="mi">60</span>
+
+<span class="k">def</span> <span class="nf">is_newprofile</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+    <span class="c1"># The &#39;main&#39; ping has the reason field in &#39;payload/info/reason&#39;</span>
+    <span class="k">return</span> <span class="s2">&quot;payload/reason&quot;</span> <span class="ow">in</span> <span class="n">p</span> <span class="ow">and</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;payload/reason&quot;</span><span class="p">)</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;startup&quot;</span><span class="p">,</span> <span class="s2">&quot;shutdown&quot;</span><span class="p">]</span>
+
+<span class="k">def</span> <span class="nf">validate_newprofile_shutdown</span><span class="p">(</span><span class="n">client_data</span><span class="p">):</span>
+    <span class="n">ordered_pings</span> <span class="o">=</span> <span class="n">client_data</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="n">newprofile_mask</span> <span class="o">=</span> <span class="p">[</span><span class="n">is_newprofile</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">ordered_pings</span><span class="p">]</span>
+
+    <span class="c1"># Do we have at least a &#39;new-profile&#39; ping?</span>
+    <span class="n">num_newprofile_pings</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">newprofile_mask</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">num_newprofile_pings</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;No shutdown &#39;new-profile&#39; ping found&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># Do we have multiple &#39;new-profile&#39; pings?</span>
+    <span class="k">if</span> <span class="n">num_newprofile_pings</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;Duplicate &#39;new-profile&#39; ping.&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">newprofile_mask</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;The &#39;new-profile&#39; ping is not the first ping&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># If there&#39;s a new-profile ping with reason &#39;shutdown&#39;, look for the closest next</span>
+    <span class="c1"># &#39;main&#39; ping with reason shutdown.</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">p</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ordered_pings</span><span class="p">):</span>
+        <span class="c1"># Skip until we find the &#39;new-profile&#39; ping.</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">is_newprofile</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+            <span class="k">continue</span>
+
+        <span class="c1"># We found the &#39;new-profile&#39; ping. Do we have any other ping</span>
+        <span class="c1"># after this?</span>
+        <span class="n">next_index</span> <span class="o">=</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">next_index</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">ordered_pings</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;No more pings after the &#39;new-profile&#39;&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+        <span class="c1"># Did we schedule the &#39;new-profile&#39; ping at the right moment?</span>
+        <span class="n">next_ping</span> <span class="o">=</span> <span class="n">ordered_pings</span><span class="p">[</span><span class="n">next_index</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">next_ping</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;payload/info/sessionLength&quot;</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">HALF_HOUR_IN_S</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;The &#39;new-profile&#39; ping was correctly scheduled&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;The &#39;new-profile&#39; ping was scheduled at the wrong time&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;Unknown condition&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+<span class="n">scheduling_error_counts</span> <span class="o">=</span> <span class="n">sorted_per_client</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">validate_newprofile_shutdown</span><span class="p">)</span><span class="o">.</span><span class="n">countByKey</span><span class="p">()</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span><span class="k">for</span> <span class="n">error</span><span class="p">,</span> <span class="n">count</span> <span class="ow">in</span> <span class="n">scheduling_error_counts</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;{}:</span><span class="se">\t</span><span class="s2">{}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">error</span><span class="p">,</span> <span class="n">pct</span><span class="p">(</span><span class="n">count</span><span class="p">,</span> <span class="n">num_analysed_clients</span><span class="p">)))</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span>The &#39;new-profile&#39; ping is not the first ping:   0.135685210312
+No shutdown &#39;new-profile&#39; ping found:   0.203527815468
+The &#39;new-profile&#39; ping was correctly scheduled: 97.8968792402
+The &#39;new-profile&#39; ping was scheduled at the wrong time: 0.881953867028
+Duplicate &#39;new-profile&#39; ping.:  0.881953867028
+</pre></div>
+
+
+<p>Most of the <code>new-profile</code> pings sent at <code>shutdown</code>, 97.89%, were correctly generated because the session lasted less than 30 minutes. Only 0.88% were scheduled at the wrong time. The rest of the clients either sent the <code>new-profile</code> at startup or we&rsquo;re still waiting for their <code>main</code> ping with reason <code>shutdown</code>.</p>
+<h3 id="are-we-sending-new-profilestartup-pings-only-from-sessions-30-minutes">Are we sending <code>new-profile</code>/<code>startup</code> pings only from sessions &gt; 30 minutes?</h3>
+<div class="codehilite"><pre><span></span><span class="n">newping_startup</span> <span class="o">=</span> <span class="n">deduped_docid</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;payload/reason&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;startup&quot;</span><span class="p">)</span>
+<span class="n">newprofile_start_main</span> <span class="o">=</span> <span class="n">first_main</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="n">newping_startup</span><span class="p">)</span>
+<span class="n">sorted_per_client</span> <span class="o">=</span> <span class="n">newprofile_start_main</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s2">&quot;clientId&quot;</span><span class="p">],</span> <span class="p">[(</span><span class="n">p</span><span class="p">,</span> <span class="n">p</span><span class="p">[</span><span class="s2">&quot;meta/creationTimestamp&quot;</span><span class="p">])]))</span>\
+                                         <span class="o">.</span><span class="n">reduceByKey</span><span class="p">(</span><span class="k">lambda</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">a</span> <span class="o">+</span> <span class="n">b</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">k</span><span class="p">:</span> <span class="n">k</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>\
+                                         <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">)</span>\
+                                         <span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">[</span><span class="n">r</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">p</span><span class="p">[</span><span class="mi">1</span><span class="p">]]))</span>
+<span class="n">num_analysed_clients</span> <span class="o">=</span> <span class="n">sorted_per_client</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span><span class="k">def</span> <span class="nf">validate_newprofile_startup</span><span class="p">(</span><span class="n">client_data</span><span class="p">):</span>
+    <span class="n">ordered_pings</span> <span class="o">=</span> <span class="n">client_data</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="n">newprofile_mask</span> <span class="o">=</span> <span class="p">[</span><span class="n">is_newprofile</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">ordered_pings</span><span class="p">]</span>
+
+    <span class="c1"># Do we have at least a &#39;new-profile&#39; ping?</span>
+    <span class="n">num_newprofile_pings</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">newprofile_mask</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">num_newprofile_pings</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;No startup &#39;new-profile&#39; ping found&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># Do we have multiple &#39;new-profile&#39; pings?</span>
+    <span class="k">if</span> <span class="n">num_newprofile_pings</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;Duplicate &#39;new-profile&#39; ping&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">newprofile_mask</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;The &#39;new-profile&#39; ping it&#39;s not the first ping&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># If there&#39;s a new-profile ping with reason &#39;startup&#39;, look for the closest next</span>
+    <span class="c1"># &#39;main&#39; ping with reason shutdown.</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">p</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ordered_pings</span><span class="p">):</span>
+        <span class="c1"># Skip until we find the &#39;new-profile&#39; ping.</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">is_newprofile</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+            <span class="k">continue</span>
+
+        <span class="c1"># We found the &#39;new-profile&#39; ping. Do we have any other ping</span>
+        <span class="c1"># after this?</span>
+        <span class="n">next_index</span> <span class="o">=</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">next_index</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">ordered_pings</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;No more pings after the &#39;new-profile&#39;&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+        <span class="c1"># Did we schedule the &#39;new-profile&#39; ping at the right moment?</span>
+        <span class="n">next_ping</span> <span class="o">=</span> <span class="n">ordered_pings</span><span class="p">[</span><span class="n">next_index</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">next_ping</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;payload/info/sessionLength&quot;</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">HALF_HOUR_IN_S</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;The &#39;new-profile&#39; ping was correctly scheduled&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;The &#39;new-profile&#39; ping was scheduled at the wrong time&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;Unknown condition&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+<span class="n">startup_newprofile_errors</span> <span class="o">=</span> <span class="n">sorted_per_client</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">validate_newprofile_startup</span><span class="p">)</span><span class="o">.</span><span class="n">countByKey</span><span class="p">()</span>
+<span class="k">for</span> <span class="n">error</span><span class="p">,</span> <span class="n">count</span> <span class="ow">in</span> <span class="n">startup_newprofile_errors</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;{}:</span><span class="se">\t</span><span class="s2">{}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">error</span><span class="p">,</span> <span class="n">pct</span><span class="p">(</span><span class="n">count</span><span class="p">,</span> <span class="n">num_analysed_clients</span><span class="p">)))</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span>The &#39;new-profile&#39; ping it&#39;s not the first ping: 1.41342756184
+The &#39;new-profile&#39; ping was correctly scheduled: 96.1130742049
+Duplicate &#39;new-profile&#39; ping:   1.06007067138
+The &#39;new-profile&#39; ping was scheduled at the wrong time: 0.353356890459
+No startup &#39;new-profile&#39; ping found:    1.06007067138
+</pre></div>
+
+
+<p>The results look good and in line with the previous case of the <code>new-profile</code> ping being sent at <code>shutdown</code>. The number of times the <code>new-profile</code> ping isn&rsquo;t the first generated ping is slightly higher (0.13% vs 1.41%), but this can be explained by the fact that nothing prevents Firefox from sending new pings after Telemetry starts up (60s into the Firefox startup some addon is installed), while the <code>new-profile</code> ping is strictly scheduled 30 minutes after the startup.</p>
+<h3 id="did-we-receive-any-crash-ping-from-bad-behaved-clients">Did we receive any <code>crash</code> ping from bad-behaved clients?</h3>
+<p>If that happened close to when we generated a <code>new-profile</code> ping, it could hint at some correlation between crashes and the duplicates per client id.</p>
+<div class="codehilite"><pre><span></span><span class="n">crash_pings</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">from_source</span><span class="p">(</span><span class="s2">&quot;telemetry&quot;</span><span class="p">)</span> \
+                     <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">docType</span><span class="o">=</span><span class="s1">&#39;crash&#39;</span><span class="p">)</span> \
+                     <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">appUpdateChannel</span><span class="o">=</span><span class="s2">&quot;nightly&quot;</span><span class="p">)</span> \
+                     <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">submissionDate</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="s2">&quot;20170531&quot;</span> <span class="o">&lt;=</span> <span class="n">x</span> <span class="o">&lt;</span> <span class="s2">&quot;20170607&quot;</span><span class="p">)</span> \
+                     <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">appBuildId</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="s2">&quot;20170531&quot;</span> <span class="o">&lt;=</span> <span class="n">x</span> <span class="o">&lt;</span> <span class="s2">&quot;20170607&quot;</span><span class="p">)</span> \
+                     <span class="o">.</span><span class="n">records</span><span class="p">(</span><span class="n">sc</span><span class="p">,</span> <span class="n">sample</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span>fetching 356.90416MB in 3290 files...
+</pre></div>
+
+
+<p>Restrict the crashes to a set of useful fields, just for the misbehaving clients, and dedupe them by document id.</p>
+<div class="codehilite"><pre><span></span><span class="n">crash_subset</span> <span class="o">=</span> <span class="n">get_pings_properties</span><span class="p">(</span><span class="n">crash_pings</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">,</span>
+                                                  <span class="s2">&quot;meta/creationTimestamp&quot;</span><span class="p">,</span>
+                                                  <span class="s2">&quot;meta/Date&quot;</span><span class="p">,</span>
+                                                  <span class="s2">&quot;meta/Timestamp&quot;</span><span class="p">,</span>
+                                                  <span class="s2">&quot;meta/X-PingSender-Version&quot;</span><span class="p">,</span>
+                                                  <span class="s2">&quot;clientId&quot;</span><span class="p">,</span>
+                                                  <span class="s2">&quot;environment/profile/creationDate&quot;</span><span class="p">,</span>
+                                                  <span class="s2">&quot;payload/crashDate&quot;</span><span class="p">,</span>
+                                                  <span class="s2">&quot;payload/crashTime&quot;</span><span class="p">,</span>
+                                                  <span class="s2">&quot;payload/processType&quot;</span><span class="p">,</span>
+                                                  <span class="s2">&quot;payload/sessionId&quot;</span><span class="p">])</span>
+<span class="n">crashes_misbehaving_clients</span> <span class="o">=</span> <span class="n">dedupe</span><span class="p">(</span><span class="n">crash_subset</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span>\
+                                                             <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;clientId&quot;</span><span class="p">)</span> <span class="ow">in</span> <span class="n">misbehaving_clients</span> <span class="ow">and</span>\
+                                                             <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;payload/processType&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;main&#39;</span><span class="p">),</span> <span class="s2">&quot;id&quot;</span><span class="p">)</span>
+<span class="n">newprofile_bad_clients</span> <span class="o">=</span> <span class="n">subset</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">p</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;clientId&quot;</span><span class="p">)</span> <span class="ow">in</span> <span class="n">misbehaving_clients</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span><span class="k">def</span> <span class="nf">get_ping_type</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+    <span class="k">return</span> <span class="s2">&quot;crash&quot;</span> <span class="k">if</span> <span class="s2">&quot;payload/crashDate&quot;</span> <span class="ow">in</span> <span class="n">p</span> <span class="k">else</span> <span class="s2">&quot;new-profile&quot;</span>
+
+<span class="n">newprofile_and_crashes</span> <span class="o">=</span> <span class="n">crashes_misbehaving_clients</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="n">newprofile_bad_clients</span><span class="p">)</span>
+
+<span class="c1"># Builds an RDD with (&lt;client id&gt;, [&lt;ordered reason&gt;, &lt;ordered reason&gt;, ...])</span>
+<span class="n">joint_ordered_pings</span> <span class="o">=</span> <span class="n">newprofile_and_crashes</span>\
+                        <span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s2">&quot;clientId&quot;</span><span class="p">],</span> <span class="p">[(</span><span class="n">get_ping_type</span><span class="p">(</span><span class="n">p</span><span class="p">),</span> <span class="n">p</span><span class="p">[</span><span class="s2">&quot;meta/creationTimestamp&quot;</span><span class="p">])]))</span>\
+                        <span class="o">.</span><span class="n">reduceByKey</span><span class="p">(</span><span class="k">lambda</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">a</span> <span class="o">+</span> <span class="n">b</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">k</span><span class="p">:</span> <span class="n">k</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>\
+                        <span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">[</span><span class="n">r</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">p</span><span class="p">[</span><span class="mi">1</span><span class="p">]]))</span>
+
+<span class="nb">sorted</span><span class="p">(</span><span class="n">joint_ordered_pings</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span><span class="o">.</span><span class="n">countByValue</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">k</span><span class="p">:</span> <span class="n">k</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">reverse</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+</pre></div>
+
+
+<div class="codehilite"><pre><span></span>[((&#39;new-profile&#39;, &#39;new-profile&#39;), 15),
+ ((&#39;new-profile&#39;, &#39;new-profile&#39;, &#39;new-profile&#39;), 4),
+ ((&#39;new-profile&#39;,
+   &#39;crash&#39;,
+   &#39;crash&#39;,
+   &#39;new-profile&#39;,
+   &#39;crash&#39;,
+   &#39;new-profile&#39;,
+   &#39;new-profile&#39;,
+   &#39;crash&#39;,
+   &#39;new-profile&#39;,
+   &#39;crash&#39;,
+   &#39;new-profile&#39;),
+  1),
+ ((&#39;new-profile&#39;, &#39;crash&#39;, &#39;new-profile&#39;), 1),
+ ((&#39;new-profile&#39;,
+   &#39;new-profile&#39;,
+   &#39;new-profile&#39;,
+   &#39;new-profile&#39;,
+   &#39;new-profile&#39;,
+   &#39;crash&#39;,
+   &#39;crash&#39;,
+   &#39;crash&#39;,
+   &#39;crash&#39;,
+   &#39;crash&#39;,
+   &#39;new-profile&#39;),
+  1),
+ ((&#39;new-profile&#39;, &#39;new-profile&#39;, &#39;crash&#39;), 1)]
+</pre></div>
+
+
+<p>The first groups of reported ping sequences, don&rsquo;t contain any <code>crash</code> ping and account for most of the <code>new-profile</code> duplicates pattern. The other sequences interleave <code>new-profile</code> and main process <code>crash</code> pings, suggesting that crashes might play a role in per-client duplicates. However, we only have crashes for 3 clients over 23 misbehaving ones, not enough to draw conclusions from.</p>
+<div class="codehilite"><pre><span></span>
+</pre></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container-fluid">
+        <div class="row">
+          <div class="col-md-12">
+            <h2> 0 Comments </h2>
+            </br>
+            <div>
+              <div class="row">
+                <div class="col-md-12">
+                  <textarea class="form-control" type="text" id="comment-text" style="height:87px;" placeholder="Leave a comment..."></textarea>
+                </div>
+              </div>
+            </div>
+            </br>
+            <div>
+              <button class="btn btn-primary" id="post_comment_btn">Post Comment</button>
+            </div>
+          </div>
+        </div>
+
+        <br>
+
+        <div class="row">
+          <div class="col-md-12">
+            
+          </div>
+          </br>
+        </div>
+    </div>
+  </div>
+
+
+        </div>
+
+        <div class="footer">
+            Served with <span class="glyphicon glyphicon-heart"></span> by <a href="https://github.com/airbnb/knowledge-repo">Knowledge Repo</a> <a  href="https://github.com/airbnb/knowledge-repo/releases/tag/v0.7.4">0.7.4</a><br />
+            <i title="Last checked for updates: 21 seconds ago">Last indexed: 17 hours ago</i>
+        </div>
+
+        
+
+
+        <script type='text/javascript'>
+            $("#searchbar")[0].setSelectionRange(1000, 1000);
+
+            $('#searchbar').typeahead({
+                hint: false,
+                highlight: true,
+                minLength: 1
+              },
+              {
+                name: 'knowledge_posts',
+                limit: 10,
+                display: function (item) {
+                  return item.title + " - " + item.author;
+                },
+                templates: {
+                  empty: Handlebars.compile(
+                    '<div class="tt-not-found">' +
+                      'Unable to find any posts that match the current query' +
+                      '</div>'
+                  ),
+                  suggestion: function(data) {
+                    return '<p style="overflow-wrap:break-word"><strong class="text-rausch">' + data.title + '</strong> – ' + data.author + '</p>';
+                  }
+                },
+                source: function(q, sync, async) {
+                  $.ajax('/ajax/index/typeahead?search=' + q,
+                  {
+                    success: function(data,status){ async(JSON.parse(data)); }
+                  })
+                }
+              });
+
+
+            $('#searchbar').bind('typeahead:select', function(obj, datum, name) {
+              window.location = '/post/'+encodeURIComponent(datum.path);
+            });
+
+            $('#searchbar').keypress(function(event){
+              var keycode = (event.keyCode ? event.keyCode : event.which);
+              if(keycode == '13'){
+                var path = document.location.pathname;
+                window.location = '/feed?filters=' + $('#searchbar').val()
+              }
+            });
+
+            var padding = $('.tt-menu').outerWidth()
+            $('.tt-menu').width($('#searchbar').width() + padding + "px")
+
+        </script>
+        
+
+<script src="/static/js/tooltips.js" type="text/javascript"></script>
+<script type="text/javascript">
+$("document").ready(function(){
+  var is_webeditor = false;
+  
+  var post_id = "14";
+  var id = "None";
+  var post_path = "projects/newprofile_ping_nightly_validation.kp"
+  var data_repo_github_root = ""
+  tooltipsJx.initializeTooltips(is_webeditor, post_id, id, data_repo_github_root);
+
+  $(".btn-rendered").on("click", function(){
+    document.location.href = "/post/" + encodeURI(post_path);
+  })
+
+  $(".btn-raw").on("click", function(){
+    document.location.href = "/post/" + encodeURI(post_path) + "?render=raw";
+  })
+
+  $(".btn-webeditor").on("click", function(){
+    document.location.href = "/edit/" + encodeURI(post_path);
+  })
+});
+
+</script>
+
+
+
+<script src="/static/js/helpers.js"></script>
+<script src="/static/js/tags.js" type="text/javascript"></script>
+<script src="/static/js/icons.js" type="text/javascript"></script>
+<script src="/static/js/comments.js" type="text/javascript"></script>
+
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({
+    extensions: ["tex2jax.js"],
+    jax: ["input/TeX", "output/HTML-CSS"],
+    tex2jax: {
+      inlineMath: [ ['$','$'], ["\\(","\\)"] ],
+      displayMath: [ ['$$','$$'], ["\\[","\\]"] ],
+      processEscapes: true
+    },
+    "HTML-CSS": { availableFonts: ["TeX"] }
+  });
+</script>
+<script type="text/javascript"
+  src="https://cdn.mathjax.org/mathjax/latest/MathJax.js">
+</script>
+
+<script>
+$(document).on('ready', function(){
+  // Make the Rendered Markdown Button active
+  $(".btn-rendered").addClass("btn-active");
+
+  // Initialize headers
+  helpersJx.linkifyHeaders();
+
+  // Initialize comments
+  var post_path = 'projects/newprofile_ping_nightly_validation.kp';
+
+  $("#post_comment_btn").on('click', function(){
+      comment_author = 'knowledge_default';
+      post_author = 'dexter';
+      post_title = 'new-profile ping validation on Nightly';
+      commentsJx.postComment(comment_author, post_author, post_title, post_path);
+      location.reload();
+  });
+
+  all_comment_delete_buttons = $("[id^=delete_comment]")
+  $.each(all_comment_delete_buttons, function(i,v){
+      $(v).on("click", function(){
+          var id = v.id;
+          var comment_id = id.split("__")[1];
+          if(comment_id) {
+            commentsJx.deleteComment(post_path, comment_id)
+            location.reload();
+          }
+      });
+  });
+  $(document.body).on('click',"button[id^=tag-subscription]",function () {
+    tagsJx.addTagSubscriptionListener($(this)[0]);
+  });
+})
+
+//Turn all the headers to be links
+//h1 = Title, don't want that
+var all_headers = [$("h2"), $("h3"), $("h4"), $("h5"), $("h6")]
+$.each(all_headers, function(index, value){
+  $.each(value, function(i, v){
+    var inner_html = v.innerHTML
+    inner_html_no_special = inner_html.replace(/[^a-zA-Z\- ]/g, "")
+    var inner_link = "#" + inner_html_no_special.toLowerCase().split(" ").join("-")
+    v.innerHTML = "<a href='" + inner_link + "' class=link-reset>" + inner_html + "</a>"
+  })
+})
+
+//turn all the tags into links, similar to what's done on the feed page
+var tags = $("#renderedMarkdown .metadata .tags")[0]
+var tags_list = ['tutorial', 'examples', 'telemetry', 'spark']
+var subscriptions_list = []
+$.each(tags_list, function(i,tag){
+  ahref = document.createElement("a")
+  e_tag = encodeURIComponent(tag)
+  f_tag = tag.replace("/", "__")
+  tag_name = "#" + tag
+  tag_subscription_button_id_name = "tag-subscription-" + i + "__" + f_tag
+  ahref.setAttribute("data-container", "body")
+  ahref.setAttribute("data-toggle", "popover")
+  ahref.setAttribute("data-placement", "bottom")
+  ahref.setAttribute("data-html", "true")
+  ahref.setAttribute("data-tag-name", f_tag)
+  if (subscriptions_list.indexOf(tag) >= 0) {
+    ahref.setAttribute("class", "label label-subscribed pop")
+    ahref.setAttribute("data-content", "<div class='content'>" +
+                  " <button class='btn btn-small btn-primary btn-unsubscribe'" +
+                        " title='' " +
+                          " id='" + tag_subscription_button_id_name + "'> " +
+                    " <i class='glyphicon glyphicon-remove-sign glyphicon-white'></i>Unsubscribe " +
+                  " </button> " +
+                  " </div>")
+  } else {
+    ahref.setAttribute("class", "label label-unsubscribed pop")
+    ahref.setAttribute("data-content", "<div class='content'>" +
+                  " <button class='btn btn-small btn-default btn-subscribe'" +
+                        " title='' " +
+                          " id='" + tag_subscription_button_id_name + "'> " +
+                    " <i class='glyphicon glyphicon-ok-sign glyphicon-filled'></i>Subscribe " +
+                  " </button> " +
+                  " </div>")
+  }
+  ahref.setAttribute("href", "/tag_pages?tag=" + e_tag)
+  ahref.setAttribute("style", "font-weight:normal")
+  if (i == 0){
+    ahref.innerHTML = " "
+    colon = document.createElement("text")
+    colon.innerHTML = "<b>Tags</b>: "
+    tags.appendChild(colon)
+  }
+  ahref.innerHTML = ahref.innerHTML + tag_name
+  tags.appendChild(ahref)
+  if (i != tags_list.length - 1){
+    comma = document.createElement("text")
+    comma.innerText = ", "
+    tags.appendChild(comma)
+  }
+})
+tags.nextSibling.remove()
+
+tags.innerHTML += "<i class='glyphicon glyphicon-edit icon-gray' style='font-size:12pt; padding-left:4px' id='tooltip-edit_tags'></i>"
+
+$(".pop").popover({ trigger: "manual" , html: true, animation:false, delay: 100})
+  .on("mouseenter", function () {
+      var _this = this;
+      $(this).popover("show");
+      $(".popover").on("mouseleave", function () {
+          $(_this).popover('hide');
+      });
+  }).on("mouseleave", function () {
+      var _this = this;
+      setTimeout(function () {
+          if (!$(".popover:hover").length) {
+              $(_this).popover("hide");
+          }
+      }, 300);
+});
+
+$('#tooltip-edit_tags').click(function(){
+  $('#tooltip-edit_tags')[0].setAttribute("style", "display:none")
+  previousSibling = $("#tooltip-edit_tags")[0].previousSibling
+  tags_string = tags_list.join(", ")
+  form = document.createElement("form")
+  input = document.createElement("input")
+  tags_text = document.createElement("text")
+  icon_class = document.createElement("i")
+  icon_class.setAttribute("class", "glyphicon glyphicon-upload icon-gray")
+  icon_class.setAttribute("style", "font-size:23px; padding-left:4px")
+  icon_class.setAttribute("id", "tooltip-save_tags")
+  tags_text.innerText = "Tags: "
+  input.setAttribute('type', 'text')
+  input.setAttribute('name', 'tags_list')
+  input.setAttribute('value', tags_string)
+  input.setAttribute('style', 'width:75%; display: inline-block')
+  input.setAttribute('id' , 'change_tags')
+  form.appendChild(tags_text)
+  tags.textContent = " "
+  form.appendChild(input)
+  form.appendChild(icon_class)
+  tags.appendChild(form)
+
+
+  $("#tooltip-save_tags").click(function(){
+    tags_string = $("#change_tags")[0].value
+    tags_list = tags_string.split(",")
+
+    var re = /^[a-z0-9\-\_\:\/]+$/i
+    var good = true
+    for (var i = 0; i < tags_list.length; i++){
+      tag = tags_list[i]
+      if (tag.length == 0){
+        alert("There is a tag with length 0 - possible a trailing comma?")
+        good = false
+        break
+      } else {
+        tag_name = tag.trim()
+        if (!(re.test(tag_name))){
+           alert("The tag contains special characters. Make sure there are only alphanumeric characters in your tag")
+           good = false
+           break
+        }
+      }
+    }
+    if (good) {
+    var postContent = {}
+      postContent['tags'] = tags_string
+      $.ajax({
+        type: "POST",
+        dataType: "json",
+        data: JSON.stringify(postContent),
+        contentType: "application/json",
+        url: '/tag_list?post_path=projects/newprofile_ping_nightly_validation.kp',
+        async: false
+      });
+      location.reload()
+    }
+  })
+
+  tags.nextSibling.remove()
+
+  // Allow user to edit tags
+  var edit_icon = iconsJx.createEditTagsIcon();
+  $(tags).after(edit_icon);
+
+  $("#tooltip-edit_tags").on("click", function(){
+      var edit_tooltip = $("#tooltip-edit_tags");
+      edit_tooltip.attr("style", "display:none");
+
+      var tags_string = tags_list.join(", ");
+      var form = $("<form>");
+      var input = $("<input>");
+
+      var tags_text = $("<text>");
+      tags_text.html("Tags: ");
+
+
+      var icon = iconsJx.createSaveTagsIcon();
+
+      input.attr("type", "text");
+      input.attr("name", "tags_list");
+      input.attr("style", "width:75%; display: inline-block");
+      input.attr("id", "change_tags");
+
+      form.append(tags_text);
+      tags.textContent = " ";
+      tags_text.innerHTML = "Tags: ";
+      form.append(input);
+      form.append(icon);
+      tags.appendChild(form[0]);
+      $("#change_tags")[0].value = tags_string;
+
+
+      $("#change_tags").keypress(function(e){
+          if (e.which == 13){
+              var tags_string = $("#change_tags")[0].value;
+              var post_path = "projects/newprofile_ping_nightly_validation.kp";
+              tagsJx.changeAndSaveTags(post_path, tags_string);
+              return false;
+          };
+      });
+
+
+      $("#tooltip-save_tags").click(function(){
+          var tags_string = $("#change_tags")[0].value;
+          var post_path = "projects/newprofile_ping_nightly_validation.kp";
+          tagsJx.changeAndSaveTags(post_path, tags_string);
+      });
+
+       $("form").submit(function(){
+          var tags_string = $("#change_tags")[0].value;
+          var post_path = "projects/newprofile_ping_nightly_validation.kp";
+          tagsJx.changeAndSaveTags(post_path, tags_string);
+          return false
+      })
+  });
+
+});
+
+</script>
+
+
+    </body>
+
+</html>

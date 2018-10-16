@@ -1,0 +1,14 @@
+{
+    "title": "Churn to CSV",
+    "authors": [
+        "amiyaguchi"
+    ],
+    "tags": [
+        "churn",
+        "etl",
+        "csv"
+    ],
+    "publish_date": "2016-03-07",
+    "updated_at": "2016-03-07",
+    "tldr": "Convert telemetry-parquet/churn to csv"
+}

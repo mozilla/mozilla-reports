@@ -1,0 +1,15 @@
+{
+    "title": "new-profile ping validation on Nightly",
+    "authors": [
+        "dexter"
+    ],
+    "tags": [
+        "tutorial",
+        "examples",
+        "telemetry",
+        "spark"
+    ],
+    "publish_date": "2017-06-07",
+    "updated_at": "2017-06-07",
+    "tldr": "This notebook verifies that the 'new-profile' ping behaves as expected on the Nightly channel."
+}

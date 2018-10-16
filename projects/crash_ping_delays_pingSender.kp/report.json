@@ -1,0 +1,14 @@
+{
+    "title": "Crash Ping Submission and Recording Delays - pingSender",
+    "authors": [
+        "chutten"
+    ],
+    "tags": [
+        "crash ping",
+        "delay",
+        "pingSender"
+    ],
+    "publish_date": "2017-03-07",
+    "updated_at": "2017-03-07",
+    "tldr": "How long does it take before we get crash pings from users that have pingSender vs users who don't?"
+}

@@ -1,0 +1,14 @@
+{
+    "title": "update ping (reason = success) validation on Nightly",
+    "authors": [
+        "dexter"
+    ],
+    "tags": [
+        "firefox",
+        "update",
+        "latency"
+    ],
+    "publish_date": "2016-09-14",
+    "updated_at": "2016-09-14",
+    "tldr": "This notebook verifies that the `update` ping with `reason = success` behaves as expected on Nightly."
+}

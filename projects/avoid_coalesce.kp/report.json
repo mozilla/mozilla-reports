@@ -1,0 +1,13 @@
+{
+    "title": "Prefer repartition to coalesce in Spark",
+    "authors": [
+        "Ryan Harter (:harter)"
+    ],
+    "tags": [
+        "Spark",
+        "ATMO"
+    ],
+    "publish_date": "2017-03-02",
+    "updated_at": "2017-03-02",
+    "tldr": "When saving data to parquet in Spark/ATMO, avoid using coalesce."
+}

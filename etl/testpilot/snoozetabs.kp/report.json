@@ -1,0 +1,13 @@
+{
+    "title": "TxP Snoozetabs ETL",
+    "authors": [
+        "sunahsuh"
+    ],
+    "tags": [
+        "testpilot",
+        "etl"
+    ],
+    "publish_date": "2017-02-17",
+    "updated_at": "2017-03-20",
+    "tldr": "This notebook transforms pings from the SnoozeTabs testpilot test to a parquet dataset. Docs at https://github.com/bwinton/SnoozeTabs/blob/master/docs/metrics.md"
+}

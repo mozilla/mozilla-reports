@@ -1,0 +1,13 @@
+{
+    "title": "Crash Ping Submission and Recording Delays by Channel",
+    "authors": [
+        "chutten"
+    ],
+    "tags": [
+        "main ping",
+        "delay"
+    ],
+    "publish_date": "2017-01-27",
+    "updated_at": "2017-01-27",
+    "tldr": "How long does it take before we get crash pings from users in each channel?"
+}

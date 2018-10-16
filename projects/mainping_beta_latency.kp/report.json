@@ -1,0 +1,14 @@
+{
+    "title": "Main Ping Submission Delay (Beta Channel)",
+    "authors": [
+        "dexter"
+    ],
+    "tags": [
+        "main ping",
+        "delay",
+        "pingSender"
+    ],
+    "publish_date": "2017-07-11",
+    "updated_at": "2017-07-11",
+    "tldr": "How long does it take before we get main pings (all reasons) from users that have pingSender vs users who don't, in the Beta channel?"
+}

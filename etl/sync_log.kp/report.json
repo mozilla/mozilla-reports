@@ -1,0 +1,13 @@
+{
+    "title": "Bug 1291340 - Import sync log data",
+    "authors": [
+        "mreid-moz"
+    ],
+    "tags": [
+        "sync",
+        "etl"
+    ],
+    "publish_date": "2016-11-15",
+    "updated_at": "2016-11-15",
+    "tldr": "Read, convert, and store sync log data to Parquet form per [bug 1291340](https://bugzilla.mozilla.org/show_bug.cgi?id=1291340)."
+}
