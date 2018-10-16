@@ -1,0 +1,13 @@
+{
+    "title": "Firefox Application Update Out Of Date dashboard",
+    "authors": [
+        "rstrong"
+    ],
+    "tags": [
+        "firefox",
+        "app_update"
+    ],
+    "publish_date": "2017-02-16",
+    "updated_at": "2017-02-16",
+    "tldr": "Creates the JSON data files used by the Firefox Application Update Out Of Date dashboard."
+}

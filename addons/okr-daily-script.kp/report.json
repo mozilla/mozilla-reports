@@ -1,0 +1,14 @@
+{
+    "title": "addon_aggregates derived dataset script",
+    "authors": [
+        "Ben Miroglio"
+    ],
+    "tags": [
+        "add-ons",
+        "okr",
+        "derived dataset"
+    ],
+    "publish_date": "2017-02-08",
+    "updated_at": "2017-02-15",
+    "tldr": "script to be run daily that contructs the addon_aggregates table in re:dash"
+}

@@ -1,0 +1,14 @@
+{
+    "title": "What, if anything, Useful do we get from Addons Histograms?",
+    "authors": [
+        "chutten"
+    ],
+    "tags": [
+        "addons",
+        "firefox",
+        "telemetry"
+    ],
+    "publish_date": "2017-04-04",
+    "updated_at": "2017-04-04",
+    "tldr": "We don't get a lot of call for addonHistograms anymore. Maybe we should ditch 'em."
+}

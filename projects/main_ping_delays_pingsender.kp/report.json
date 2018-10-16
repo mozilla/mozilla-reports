@@ -1,0 +1,14 @@
+{
+    "title": "Main Ping Submission Delay - pingSender",
+    "authors": [
+        "dexter"
+    ],
+    "tags": [
+        "main ping",
+        "delay",
+        "pingSender"
+    ],
+    "publish_date": "2017-05-02",
+    "updated_at": "2017-05-02",
+    "tldr": "How long does it take before we get main pings from users that have pingSender vs users who don't?"
+}

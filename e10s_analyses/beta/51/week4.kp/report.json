@@ -1,0 +1,16 @@
+{
+    "title": "E10s Testing for Beta 51 week 4",
+    "authors": [
+        "rvitillo",
+        "dzeber",
+        "bmiroglio"
+    ],
+    "tags": [
+        "e10s",
+        "experiment",
+        "add-ons"
+    ],
+    "publish_date": "2017-01-10",
+    "updated_at": "2017-01-10",
+    "tldr": "Analysis of e10s experiment for profiles with and without add-ons"
+}

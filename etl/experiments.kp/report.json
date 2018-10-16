@@ -1,0 +1,13 @@
+{
+    "title": "Experiment Job",
+    "authors": [
+        "Frank Bertsch"
+    ],
+    "tags": [
+        "experiment",
+        "firefox"
+    ],
+    "publish_date": "2017-02-01",
+    "updated_at": "2016-02-08",
+    "tldr": "We take all the pings from yesterday, get the information about any experiments: those that started, those running, and those that ended. These are aggregated by channel and outputted to files in s3."
+}

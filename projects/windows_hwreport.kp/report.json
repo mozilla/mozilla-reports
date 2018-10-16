@@ -1,0 +1,13 @@
+{
+    "title": "Hardware Report for Windows 7 and Windows 10 users.",
+    "authors": [
+        "Alessio Placitelli"
+    ],
+    "tags": [
+        "hardware report",
+        "windows"
+    ],
+    "publish_date": "2017-04-05",
+    "updated_at": "2017-04-05",
+    "tldr": "This is a one-off ETL job for getting separate hardware reports for users runing Windows 7 or Windows 10."
+}

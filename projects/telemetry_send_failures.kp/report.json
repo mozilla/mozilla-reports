@@ -1,0 +1,15 @@
+{
+    "title": "TELEMETRY_SEND Failure Logs",
+    "authors": [
+        "chutten"
+    ],
+    "tags": [
+        "log",
+        "failure",
+        "telemetry",
+        "send"
+    ],
+    "publish_date": "2017-05-05",
+    "updated_at": "2017-05-05",
+    "tldr": "What kind of failures are we seeing when people fail to send Telemetry pings? (bug 1319026)"
+}

@@ -1,0 +1,13 @@
+{
+    "title": "Android Addons ETL job",
+    "authors": [
+        "Frank Bertsch"
+    ],
+    "tags": [
+        "mobile",
+        "etl"
+    ],
+    "publish_date": "2017-02-17",
+    "updated_at": "2017-02-17",
+    "tldr": "This job takes the Fennec saved session pings and maps them to just client, submissionDate, activeAddons, and persona."
+}

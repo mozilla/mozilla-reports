@@ -1,0 +1,15 @@
+{
+    "title": "Telemetry Hello World",
+    "authors": [
+        "vitillo"
+    ],
+    "tags": [
+        "tutorial",
+        "examples",
+        "telemetry",
+        "spark"
+    ],
+    "publish_date": "2016-03-10",
+    "updated_at": "2018-05-25",
+    "tldr": "Brief introduction to Spark and Telemetry in Python"
+}

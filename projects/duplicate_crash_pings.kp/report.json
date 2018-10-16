@@ -1,0 +1,14 @@
+{
+    "title": "Duplicate Crash Pings",
+    "authors": [
+        "chutten"
+    ],
+    "tags": [
+        "duplicate",
+        "dedupe",
+        "crash"
+    ],
+    "publish_date": "2017-04-07",
+    "updated_at": "2017-04-07",
+    "tldr": "When the patches landed to dedupe crash pings (bug 1354468 has the list), did they work?"
+}

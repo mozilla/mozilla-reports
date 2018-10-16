@@ -1,0 +1,12 @@
+{
+    "title": "BHR vs Input Lag Analysis",
+    "authors": [
+        "dthayer"
+    ],
+    "tags": [
+        "bhr"
+    ],
+    "publish_date": "2017-07-20",
+    "updated_at": "2017-07-20",
+    "tldr": "Analysis of the correlation between BHR hangs and \"Input Lag\" hangs."
+}

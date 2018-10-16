@@ -1,0 +1,12 @@
+{
+    "title": "Health ping data analysis (Nightly)",
+    "authors": [
+        "Kate Ustiuzhanina"
+    ],
+    "tags": [
+        "firefox, telemetry, health"
+    ],
+    "publish_date": "2017-08-24",
+    "updated_at": "2017-08-24",
+    "tldr": "Validate incoming data for the new health ping and look at how clients behave."
+}

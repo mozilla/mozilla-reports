@@ -1,0 +1,13 @@
+{
+    "title": "Main Ping Submission and Recording Delays by Channel",
+    "authors": [
+        "chutten"
+    ],
+    "tags": [
+        "main ping",
+        "delay"
+    ],
+    "publish_date": "2017-01-20",
+    "updated_at": "2017-01-20",
+    "tldr": "How long does it take before we get pings from users in each channel?"
+}

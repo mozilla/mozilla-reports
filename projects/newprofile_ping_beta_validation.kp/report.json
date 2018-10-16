@@ -1,0 +1,15 @@
+{
+    "title": "new-profile ping validation on Beta",
+    "authors": [
+        "dexter"
+    ],
+    "tags": [
+        "new-profile",
+        "latency",
+        "telemetry",
+        "spark"
+    ],
+    "publish_date": "2017-07-04",
+    "updated_at": "2017-07-04",
+    "tldr": "This notebook verifies that the 'new-profile' ping behaves as expected on the Beta channel."
+}

@@ -1,0 +1,14 @@
+{
+    "title": "Query AMO with Add-on GUID",
+    "authors": [
+        "Ben Miroglio"
+    ],
+    "tags": [
+        "AMO",
+        "add-ons",
+        "firefox-desktop"
+    ],
+    "publish_date": "2017-01-09",
+    "updated_at": "2017-01-09",
+    "tldr": "Get metadata for an add-on through AMO given its GUID"
+}

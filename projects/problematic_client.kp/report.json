@@ -1,0 +1,13 @@
+{
+    "title": "One Problematic Aurora 51 Client",
+    "authors": [
+        "chutten"
+    ],
+    "tags": [
+        "aurora",
+        "firefox"
+    ],
+    "publish_date": "2017-02-22",
+    "updated_at": "2017-02-22",
+    "tldr": "Taking a look at one problematic client on Aurora leads to a broad examination of the types of hosts that are sending us this data and some seriously-speculative conclusions."
+}
