@@ -1,0 +1,58 @@
+# These environment variables must be set in CircleCI UI
+# Make sure to set 'Pass secrets to builds from forked pull requests'
+# to OFF in circleci's UI
+#
+# AWS_ACCESS_KEY_ID
+# AWS_SECRET_ACCESS_KEY
+#
+
+version: 2
+jobs:
+  build:
+    docker:
+      - image: python:3.7
+    working_directory: ~/mozilla/mozilla-reports
+    steps:
+      - checkout
+      - run: pip install docere
+      - run: mkdir /rendered
+      - run: ./scripts/render.sh && cp -r site/* /rendered
+      - persist_to_workspace:
+          root: /rendered
+          paths:
+            - *
+
+  deploy:
+    docker:
+      - image: python:3.7
+    working_directory: ~/mozilla/mozilla-reports
+    steps:
+      - checkout
+      - attach_workspace:
+        at: /rendered
+      - run: pip install awscli --upgrade --user
+      - run:
+          name: Upload to s3
+          command: |
+            # Upload content to net-mozaws-data-us-west-2-data-rtmo
+            aws s3 cp /rendered/ s3://net-mozaws-data-us-west-2-data-rtmo/ --recursive
+
+
+workflows:
+  version: 2
+  build-test-deploy:
+    jobs:
+      - build:
+          filters:
+            tags:
+              only: /.*/
+
+      - deploy:
+          requires:
+            - build
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              only: master
+
