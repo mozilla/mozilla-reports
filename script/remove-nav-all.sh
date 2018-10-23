@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -exo pipefail
+
 # Move to the root of the git repository.
 cd $(git rev-parse --show-toplevel)
 
