@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Render all content in publishable form to a site/ directory.
+
+set -exo pipefail
+
 # Move to the root of the git repository.
 cd $(git rev-parse --show-toplevel)
 
@@ -9,7 +13,6 @@ rm -rf stage/ && mkdir -p stage/post
 
 # Copy in html content to stage/post directory.
 for d in $REPORT_DIRS; do
-    echo $d
     cp -r $d stage/post/
 done
 
