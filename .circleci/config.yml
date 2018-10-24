@@ -8,48 +8,42 @@
 
 version: 2
 jobs:
-  build:
+  test:
     docker:
       - image: python:3.7
-    working_directory: ~/mozilla/mozilla-reports
     steps:
       - checkout
       - run: pip install docere
-      - run: mkdir /rendered
-      - run: ./script/render.sh && cp -r site /rendered
-      - persist_to_workspace:
-          root: /rendered
-          paths:
-            - site/*
+      - run:
+          name: Test that docere can render the content
+          command: ./script/render.sh
 
   deploy:
     docker:
       - image: python:3.7
-    working_directory: ~/mozilla/mozilla-reports
     steps:
       - checkout
-      - attach_workspace:
-          at: /tmp/workspace/rendered
+      - run: pip install docere awscli
+      - run:
+          name: Render the content using docere
+          command: ./script/render.sh
       - run:
           name: Upload to s3
           command: |
             # Upload content to net-mozaws-data-us-west-2-data-rtmo
-            pip install awscli --upgrade
-            aws s3 cp /tmp/workspace/rendered/site/ s3://net-mozaws-data-us-west-2-data-rtmo/ --recursive
+            aws s3 cp site/ s3://net-mozaws-data-us-west-2-data-rtmo/ --recursive
 
 
 workflows:
   version: 2
   build-test-deploy:
     jobs:
-      - build:
+      - test:
           filters:
-            tags:
-              only: /.*/
+            branches:
+              ignore: master
 
       - deploy:
-          requires:
-            - build
           filters:
             tags:
               only: /.*/
