@@ -16,11 +16,11 @@ jobs:
       - checkout
       - run: pip install docere
       - run: mkdir /rendered
-      - run: ./scripts/render.sh && cp -r site/* /rendered
+      - run: ./script/render.sh && cp -r site /rendered
       - persist_to_workspace:
           root: /rendered
           paths:
-            - *
+            - site/*
 
   deploy:
     docker:
@@ -29,13 +29,13 @@ jobs:
     steps:
       - checkout
       - attach_workspace:
-        at: /rendered
+          at: /tmp/workspace/rendered
       - run: pip install awscli --upgrade --user
       - run:
           name: Upload to s3
           command: |
             # Upload content to net-mozaws-data-us-west-2-data-rtmo
-            aws s3 cp /rendered/ s3://net-mozaws-data-us-west-2-data-rtmo/ --recursive
+            aws s3 cp /tmp/workspace/rendered/ s3://net-mozaws-data-us-west-2-data-rtmo/ --recursive
 
 
 workflows:
