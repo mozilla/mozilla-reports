@@ -1,6 +1,9 @@
-Scripts for converting content. This mostly exists for historical context
-as the tools here were used for a one-time conversion from AirBnb's
-Knowledge Repo to a static site generator.
+Scripts used for local testing and continuous integration.
+
+## Conversion from Knowledge Repo
+
+Some of the scripts here exist only for historical on how we converted to
+a static docere-based site from AirBnb's Knowledge Repo application.
 
 The conversion can be run as follows:
 
