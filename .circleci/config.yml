@@ -46,13 +46,3 @@ workflows:
           filters:
             tags:
               only: /.*/
-
-      - deploy:
-          requires:
-            - build
-          filters:
-            tags:
-              only: /.*/
-            branches:
-              only: master
-
