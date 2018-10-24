@@ -16,8 +16,8 @@ for d in $REPORT_DIRS; do
     cp -r $d stage/post/
 done
 
-# TODO: Copy in static resources to stage directory once we have them in the repo.
-# cp -r static/ stage/static/
+# Copy in static resources to stage directory once we have them in the repo.
+cp -r static/ stage/static/
 
 # Generate the site content using docere.
 python -m docere.cli render --knowledge-repo stage/ --outdir site/
