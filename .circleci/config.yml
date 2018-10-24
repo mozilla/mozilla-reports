@@ -30,11 +30,11 @@ jobs:
       - checkout
       - attach_workspace:
           at: /tmp/workspace/rendered
-      - run: pip install awscli --upgrade --user
       - run:
           name: Upload to s3
           command: |
             # Upload content to net-mozaws-data-us-west-2-data-rtmo
+            pip install awscli --upgrade --user
             aws s3 cp /tmp/workspace/rendered/ s3://net-mozaws-data-us-west-2-data-rtmo/ --recursive
 
 
