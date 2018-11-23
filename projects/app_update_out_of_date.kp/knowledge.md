@@ -6,7 +6,7 @@ tags:
 - firefox
 - app_update
 created_at: 2017-02-16 00:00:00
-updated_at: 2017-03-09 10:13:43.530000
+updated_at: 2018-11-22 17:47:07.344662
 tldr: Creates the JSON data files used by the Firefox Application Update Out Of Date
   dashboard.
 ---
@@ -180,11 +180,11 @@ summary_sql = (""
     "{} AND "
     "{}"
 "").format(str(latest_version - up_to_date_releases),
-           str(latest_version + 1),
+           str(latest_version + 2),
            str(latest_version - up_to_date_releases),
            str(min_version),
            str(min_version),
-           str(latest_version + 1),
+           str(latest_version + 2),
            longitudinal_from_sql,
            common_where_sql,
            build_version_where_sql)
@@ -223,12 +223,12 @@ out_of_date_details_sql = (""
     "client_id, "
     "build.version, "
     "session_length, "
+    "settings.update.enabled, "
     "subsession_start_date, "
     "subsession_length, "
     "update_check_code_notify, "
     "update_check_extended_error_notify, "
     "update_check_no_update_notify, "
-    "update_not_pref_update_enabled_notify, "
     "update_not_pref_update_auto_notify, "
     "update_ping_count_notify, "
     "update_unable_to_apply_notify, "
@@ -517,8 +517,8 @@ an update.
 is_able_to_apply_true_rdd = is_able_to_apply_rdd.filter(lambda p: p[0] == True).values().cache()
 ```
 Create an RDD of out of date telemetry pings that have and don't have
-the application.update.enabled preference set to True / False along
-with a dictionary of the count of True and False.
+application update enabled via policy along with a dictionary of the
+count of True and False.
 
 
 ```python
@@ -530,12 +530,14 @@ def has_update_enabled_mapper(d):
            index < len(ping.version) and
            ping.version[index] == current_version):
         if ping.update_ping_count_notify[index] > 0:
-            # If there is an update ping and update_not_pref_update_enabled_notify
-            # has a value greater than 0 then the preference is false. If there is
-            # a value of 0 or update_not_pref_update_enabled_notify is None then
-            # the preference is true.
-            if (ping.update_not_pref_update_enabled_notify is not None and
-                ping.update_not_pref_update_enabled_notify[index] > 0):
+            # If there is an update ping and settings.update.enabled has a value
+            # for the same telemetry submission then use the value of
+            # settings.update.enabled to determine whether app update is enabled.
+            # This isn't 100% accurate because the update ping and the value for
+            # settings.update.enabled are gathered at different times but it is
+            # accurate enough for this report.
+            if (ping.enabled is not None and
+                ping.enabled[index] is False):
                 return False, ping
 
             return True, ping
