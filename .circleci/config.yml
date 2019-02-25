@@ -35,7 +35,7 @@ jobs:
           command: |
             # Upload content to net-mozaws-data-us-west-2-data-rtmo
             pip install awscli --upgrade
-            aws s3 cp /tmp/workspace/rendered/site/ s3://net-mozaws-data-us-west-2-data-rtmo/ --recursive
+            aws s3 cp /tmp/workspace/rendered/site/ s3://net-mozaws-data-us-west-2-data-mozilla-report/ --recursive
 
 
 workflows:
@@ -46,3 +46,12 @@ workflows:
           filters:
             tags:
               only: /.*/
+
+      - deploy:
+          requires:
+            - build
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              only: restructure-for-docere
