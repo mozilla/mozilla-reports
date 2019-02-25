@@ -7,7 +7,7 @@ cd $(git rev-parse --show-toplevel)
 
 for d in $(find . -name '*.kp' -type d); do
     echo "$d"
-    url="http://reports.telemetry.mozilla.org/${d/.\//}"
+    url="http://reports.telemetry.mozilla.org/post/${d/.\//}"
     echo $url
     curl "$url" -o "$d/rendered_from_kr.html"
 done

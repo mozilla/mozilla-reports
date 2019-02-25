@@ -11,9 +11,9 @@ REPORT_DIRS=$(find . -name 'report.json' | awk -F/ '{print $2}' | grep -v 'stage
 
 rm -rf stage/ && mkdir -p stage/post
 
-# Copy in html content to stage/ directory.
+# Copy in html content to stage/post directory.
 for d in $REPORT_DIRS; do
-    cp -r $d stage/post
+    cp -r $d stage/post/
 done
 
 # Copy in static resources to stage directory once we have them in the repo.
