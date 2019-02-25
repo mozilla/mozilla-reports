@@ -9,11 +9,11 @@ cd $(git rev-parse --show-toplevel)
 
 REPORT_DIRS=$(find . -name 'report.json' | awk -F/ '{print $2}' | grep -v 'stage' | grep -v 'site' | sort | uniq)
 
-rm -rf stage/ && mkdir -p stage/
+rm -rf stage/ && mkdir -p stage/post
 
 # Copy in html content to stage/ directory.
 for d in $REPORT_DIRS; do
-    cp -r $d stage/
+    cp -r $d stage/post
 done
 
 # Copy in static resources to stage directory once we have them in the repo.
