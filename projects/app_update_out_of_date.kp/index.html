@@ -79,7 +79,7 @@
 <h1>Firefox Application Update Out Of Date dashboard</h1>
 <span class="authors"><a href="/feed?authors=rstrong">rstrong</a></span>
 <span class="date_created">February 16, 2017</span>
-<span class="date_updated">(Last Updated: March 09, 2017)</span>
+<span class="date_updated">(Last Updated: November 22, 2018)</span>
 <span class="tldr"><p>Creates the JSON data files used by the Firefox Application Update Out Of Date dashboard.</p></span>
 
 </div>
@@ -220,11 +220,11 @@
     <span class="s2">"{} AND "</span>
     <span class="s2">"{}"</span>
 <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">latest_version</span> <span class="o">-</span> <span class="n">up_to_date_releases</span><span class="p">),</span>
-           <span class="nb">str</span><span class="p">(</span><span class="n">latest_version</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span>
+           <span class="nb">str</span><span class="p">(</span><span class="n">latest_version</span> <span class="o">+</span> <span class="mi">2</span><span class="p">),</span>
            <span class="nb">str</span><span class="p">(</span><span class="n">latest_version</span> <span class="o">-</span> <span class="n">up_to_date_releases</span><span class="p">),</span>
            <span class="nb">str</span><span class="p">(</span><span class="n">min_version</span><span class="p">),</span>
            <span class="nb">str</span><span class="p">(</span><span class="n">min_version</span><span class="p">),</span>
-           <span class="nb">str</span><span class="p">(</span><span class="n">latest_version</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span>
+           <span class="nb">str</span><span class="p">(</span><span class="n">latest_version</span> <span class="o">+</span> <span class="mi">2</span><span class="p">),</span>
            <span class="n">longitudinal_from_sql</span><span class="p">,</span>
            <span class="n">common_where_sql</span><span class="p">,</span>
            <span class="n">build_version_where_sql</span><span class="p">)</span>
@@ -254,12 +254,12 @@
     <span class="s2">"client_id, "</span>
     <span class="s2">"build.version, "</span>
     <span class="s2">"session_length, "</span>
+    <span class="s2">"settings.update.enabled, "</span>
     <span class="s2">"subsession_start_date, "</span>
     <span class="s2">"subsession_length, "</span>
     <span class="s2">"update_check_code_notify, "</span>
     <span class="s2">"update_check_extended_error_notify, "</span>
     <span class="s2">"update_check_no_update_notify, "</span>
-    <span class="s2">"update_not_pref_update_enabled_notify, "</span>
     <span class="s2">"update_not_pref_update_auto_notify, "</span>
     <span class="s2">"update_ping_count_notify, "</span>
     <span class="s2">"update_unable_to_apply_notify, "</span>
@@ -505,8 +505,8 @@ an update.</p>
 <div class="codehilite"><pre><span></span><span class="n">is_able_to_apply_true_rdd</span> <span class="o">=</span> <span class="n">is_able_to_apply_rdd</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">p</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="bp">True</span><span class="p">)</span><span class="o">.</span><span class="n">values</span><span class="p">()</span><span class="o">.</span><span class="n">cache</span><span class="p">()</span>
 </pre></div>
 <p>Create an RDD of out of date telemetry pings that have and don’t have
-the application.update.enabled preference set to True / False along
-with a dictionary of the count of True and False.</p>
+application update enabled via policy along with a dictionary of the
+count of True and False.</p>
 <div class="codehilite"><pre><span></span><span class="k">def</span> <span class="nf">has_update_enabled_mapper</span><span class="p">(</span><span class="n">d</span><span class="p">):</span>
     <span class="n">ping</span> <span class="o">=</span> <span class="n">d</span>
     <span class="n">index</span> <span class="o">=</span> <span class="mi">0</span>
@@ -515,12 +515,14 @@ with a dictionary of the count of True and False.</p>
            <span class="n">index</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">ping</span><span class="o">.</span><span class="n">version</span><span class="p">)</span> <span class="ow">and</span>
            <span class="n">ping</span><span class="o">.</span><span class="n">version</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">==</span> <span class="n">current_version</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">ping</span><span class="o">.</span><span class="n">update_ping_count_notify</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="c1"># If there is an update ping and update_not_pref_update_enabled_notify</span>
-            <span class="c1"># has a value greater than 0 then the preference is false. If there is</span>
-            <span class="c1"># a value of 0 or update_not_pref_update_enabled_notify is None then</span>
-            <span class="c1"># the preference is true.</span>
-            <span class="k">if</span> <span class="p">(</span><span class="n">ping</span><span class="o">.</span><span class="n">update_not_pref_update_enabled_notify</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="ow">and</span>
-                <span class="n">ping</span><span class="o">.</span><span class="n">update_not_pref_update_enabled_notify</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">):</span>
+            <span class="c1"># If there is an update ping and settings.update.enabled has a value</span>
+            <span class="c1"># for the same telemetry submission then use the value of</span>
+            <span class="c1"># settings.update.enabled to determine whether app update is enabled.</span>
+            <span class="c1"># This isn't 100% accurate because the update ping and the value for</span>
+            <span class="c1"># settings.update.enabled are gathered at different times but it is</span>
+            <span class="c1"># accurate enough for this report.</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">ping</span><span class="o">.</span><span class="n">enabled</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="ow">and</span>
+                <span class="n">ping</span><span class="o">.</span><span class="n">enabled</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="ow">is</span> <span class="bp">False</span><span class="p">):</span>
                 <span class="k">return</span> <span class="bp">False</span><span class="p">,</span> <span class="n">ping</span>
 
             <span class="k">return</span> <span class="bp">True</span><span class="p">,</span> <span class="n">ping</span>
@@ -1032,7 +1034,7 @@ The file will be stored at:
 $("document").ready(function(){
   var is_webeditor = false;
   
-  var post_id = "3";
+  var post_id = "4";
   var id = "None";
   var post_path = "projects/app_update_out_of_date.kp"
   var data_repo_github_root = ""
