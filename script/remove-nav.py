@@ -34,11 +34,11 @@ soup.find("textarea").parent.parent.parent.parent.parent.parent.decompose()
 for item in soup.find_all(src=True):
     src = item['src'] or ""
     if src.startswith('/static/'):
-        item['src'] = 'https://reports.telemetry.mozilla.org' + src
+        item['src'] = src.replace('/static/', '/static/legacy/knowledge-repo/')
 
 for item in soup.find_all(href=True):
     href = item['href'] or ""
     if href.startswith('/static/'):
-        item['href'] = 'https://reports.telemetry.mozilla.org' + href
+        item['href'] = href.replace('/static/', '/static/legacy/knowledge-repo/')
 
 print(soup)

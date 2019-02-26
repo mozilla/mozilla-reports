@@ -5,7 +5,7 @@
 # Move to the root of the git repository.
 cd $(git rev-parse --show-toplevel)
 
-for d in $(find . -name '*week?.kp' -type d); do
+for d in $(find . -name '*.kp' -type d); do
     echo "$d"
     url="http://reports.telemetry.mozilla.org/post/${d/.\//}"
     echo $url
