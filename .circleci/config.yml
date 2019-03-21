@@ -33,9 +33,9 @@ jobs:
       - run:
           name: Upload to s3
           command: |
-            # Upload content to net-mozaws-data-us-west-2-data-rtmo
+            # Upload content to S3
             pip install awscli --upgrade
-            aws s3 cp /tmp/workspace/rendered/site/ s3://net-mozaws-data-us-west-2-data-rtmo/ --recursive
+            aws s3 cp /tmp/workspace/rendered/site/ s3://mozilla.report/ --recursive
 
 
 workflows:
