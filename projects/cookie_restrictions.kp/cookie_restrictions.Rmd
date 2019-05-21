@@ -27,7 +27,7 @@ Figs 1 and 2 show what happened to clients between 1 and 2 weeks after enrollmen
 
 For each point on Fig 1, the y coordinate of the point gives the fraction of users in the branch who had >x active hours that week. "Active hours" refers to the amount of time that the user was interacting with the browser (clicking, scrolling, etc). So in all three branches, roughly 70% of users had at least _some_ activity in this time period (at x=0, y is roughly 0.7). Looking at x=5, fewer than 20% of users in each branch had more than 5 hours of activity.
 
-In Fig 1 it's hard to see the difference between branches, so in Fig 2 I plot the "uplift" of each cohort vs the control, Cohort_1. The "uplift" is the ratio of y values in Fig 1, minus 1: if the uplift is zero then there is no change, if it is positive then more users have >x active hours. I shade the 90% probability bands around each of these uplifts.
+In Fig 1 it's hard to see the difference between branches, so in Fig 2 we plot the "uplift" of each cohort vs the control, Cohort_1. The "uplift" is the ratio of y values in Fig 1, minus 1: if the uplift is zero then there is no change, if it is positive then more users have >x active hours. We shade the 90% probability bands around each of these uplifts.
 
 <figure><img src="uplift.png">
     <figcaption>Figure 2</figcaption>
