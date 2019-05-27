@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+
+<meta charset="utf-8" />
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="pandoc" />
+
+
+<meta name="author" content="Felix Lawrence" />
+
+
+<title>Default on Cookie Restrictions Excerpt</title>
+
+<script src="index_files/jquery-1.11.3/jquery.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="index_files/bootstrap-3.3.5/css/cosmo.min.css" rel="stylesheet" />
+<script src="index_files/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="index_files/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="index_files/bootstrap-3.3.5/shim/respond.min.js"></script>
+<script src="index_files/navigation-1.1/tabsets.js"></script>
+<link href="index_files/highlightjs-9.12.0/default.css" rel="stylesheet" />
+<script src="index_files/highlightjs-9.12.0/highlight.js"></script>
+
+<style type="text/css">code{white-space: pre;}</style>
+<style type="text/css">
+  pre:not([class]) {
+    background-color: white;
+  }
+</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+<style type="text/css">
+h1 {
+  font-size: 34px;
+}
+h1.title {
+  font-size: 38px;
+}
+h2 {
+  font-size: 30px;
+}
+h3 {
+  font-size: 24px;
+}
+h4 {
+  font-size: 18px;
+}
+h5 {
+  font-size: 16px;
+}
+h6 {
+  font-size: 12px;
+}
+.table th:not([align]) {
+  text-align: left;
+}
+</style>
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+code {
+  color: inherit;
+  background-color: rgba(0, 0, 0, 0.04);
+}
+img {
+  max-width:100%;
+  height: auto;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+</style>
+
+
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "&#xe258;";
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
+</script>
+
+<!-- code folding -->
+
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+
+
+<div class="fluid-row" id="header">
+
+
+
+<h1 class="title toc-ignore">Default on Cookie Restrictions Excerpt</h1>
+<h4 class="author">Felix Lawrence</h4>
+<h4 class="date">Last Updated: 21 May 2019</h4>
+
+</div>
+
+
+<p>We want to block tracking cookies to increase user privacy, in line with Mozilla’s broad goals. We need to watch for some potential negative effects, such as decreased revenue and the potential that we break certain sites, leading to unhappier users, decreased engagement and increased churn.</p>
+<p>On December 17, we launched an experiment dividing 1.1% of eligible Firefox users into three branches:</p>
+<ul>
+<li>Cohort_1: The control, with no cookie restrictions</li>
+<li>Cohort_2: Tracking cookies from the basic list blocked (ETP)</li>
+<li>Cohort_3: All third party cookies blocked</li>
+</ul>
+<p>The third branch, Cohort_3, went beyond what we would expect to deliver to users. This aggressive move was designed to cause user-noticeable breakage so that we could discover whether our experimental methods are sensitive enough to detect this level of user-noticeable breakage.</p>
+<p>Figs 1 and 2 show what happened to clients between 1 and 2 weeks after enrollment.</p>
+<figure>
+<img src="survival.png">
+<figcaption>
+Figure 1
+</figcaption>
+</figure>
+<p>For each point on Fig 1, the y coordinate of the point gives the fraction of users in the branch who had &gt;x active hours that week. “Active hours” refers to the amount of time that the user was interacting with the browser (clicking, scrolling, etc). So in all three branches, roughly 70% of users had at least <em>some</em> activity in this time period (at x=0, y is roughly 0.7). Looking at x=5, fewer than 20% of users in each branch had more than 5 hours of activity.</p>
+<p>In Fig 1 it’s hard to see the difference between branches, so in Fig 2 we plot the “uplift” of each cohort vs the control, Cohort_1. The “uplift” is the ratio of y values in Fig 1, minus 1: if the uplift is zero then there is no change, if it is positive then more users have &gt;x active hours. We shade the 90% probability bands around each of these uplifts.</p>
+<figure>
+<img src="uplift.png">
+<figcaption>
+Figure 2
+</figcaption>
+</figure>
+<p>In Figure 2, for Cohort_3 (all third party cookies blocked) the entire band is well away from zero uplift: there is a significant difference between Cohort_3 and the control. It looks like we had around 1% fewer active users in Cohort_3, and between 2% and 5% fewer users who were active for over 10 hours. There is little ambiguity here: Cohort_3 was worse for user engagement and retention than the control. This gives us confidence in our ability to detect disasters using these techniques.</p>
+<p>Since the impact on users was much larger than we had anticipated, Cohort_3 was terminated shortly after these graphs were generated, and the affected users were returned to the default settings.</p>
+<p>Through the remainder of the experiment, we could not detect a significant difference in usage between Cohort_1 (the control) and Cohort_2 (ETP). For example, in each of the first five weeks after enrollment, the difference in active hours per user in Cohort_2 was within +/-2% of that for Cohort_1.</p>
+<div id="references" class="section level2">
+<h2>References</h2>
+<p><a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1506908">Bug</a></p>
+</div>
+
+
+
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
