@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+
+<meta charset="utf-8" />
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="pandoc" />
+
+
+<meta name="author" content="Felix Lawrence" />
+
+
+<title>Notification permissions</title>
+
+<script src="index_files/jquery-1.11.3/jquery.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="index_files/bootstrap-3.3.5/css/cosmo.min.css" rel="stylesheet" />
+<script src="index_files/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="index_files/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="index_files/bootstrap-3.3.5/shim/respond.min.js"></script>
+<script src="index_files/jqueryui-1.11.4/jquery-ui.min.js"></script>
+<link href="index_files/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="index_files/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="index_files/navigation-1.1/tabsets.js"></script>
+<link href="index_files/highlightjs-9.12.0/default.css" rel="stylesheet" />
+<script src="index_files/highlightjs-9.12.0/highlight.js"></script>
+
+<style type="text/css">code{white-space: pre;}</style>
+<style type="text/css">
+  pre:not([class]) {
+    background-color: white;
+  }
+</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+<style type="text/css">
+h1 {
+  font-size: 34px;
+}
+h1.title {
+  font-size: 38px;
+}
+h2 {
+  font-size: 30px;
+}
+h3 {
+  font-size: 24px;
+}
+h4 {
+  font-size: 18px;
+}
+h5 {
+  font-size: 16px;
+}
+h6 {
+  font-size: 12px;
+}
+.table th:not([align]) {
+  text-align: left;
+}
+</style>
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+code {
+  color: inherit;
+  background-color: rgba(0, 0, 0, 0.04);
+}
+img {
+  max-width:100%;
+  height: auto;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+</style>
+
+
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "&#xe258;";
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
+</script>
+
+<!-- code folding -->
+
+
+
+<script>
+$(document).ready(function ()  {
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_').toLowerCase();
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+  padding-left: 25px;
+  text-indent: 0;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row-fluid">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="fluid-row" id="header">
+
+
+
+<h1 class="title toc-ignore">Notification permissions</h1>
+<h4 class="author">Felix Lawrence</h4>
+<h4 class="date">Last Updated: 18 September 2019</h4>
+
+</div>
+
+
+<figure>
+<img src="screenshot.png">
+</figure>
+<p>Investigation into whether notification permission prompts are a good experience for web users, and whether there is scope for improving the experience.</p>
+<div id="tldr" class="section level1">
+<h1>TL;DR</h1>
+<ul>
+<li>Only around 1% of permission requests are granted/allowed.</li>
+<li>Around 73% of allows come the first time the dialog is shown for a site.</li>
+<li>If permissions are not granted the first time the dialog is shown, then the user is extremely unlikely to grant the permissions for this site at any point in the future - regardless of whether the user clicked “Not now” or just ignored the dialog.</li>
+</ul>
+</div>
+<div id="methodologydataset" class="section level1">
+<h1>Methodology/Dataset</h1>
+<p>We used Normandy to temporarily enable some additional telemetry [<a href="https://telemetry.mozilla.org/probe-dictionary/?search=permissionprompt&amp;detailView=event%2Fsecurity.ui.permissionprompt.show%23show">1</a>, <a href="https://telemetry.mozilla.org/probe-dictionary/?search=permissionprompt&amp;detailView=event%2Fsecurity.ui.permissionprompt.accept%23remove">2</a>] for a random 0.1% of desktop Firefox users. With this telemetry enabled, these browsers locally keep track of which sites are asking for notification permissions and how the user responded to the prompt. For each notification prompt, they send us <a href="https://telemetry.mozilla.org/probe-dictionary/?search=permissionprompt&amp;detailView=event%2Fsecurity.ui.permissionprompt.show%23show">some information</a> about it - such as how many times the user had previously denied this prompt, and <a href="https://telemetry.mozilla.org/probe-dictionary/?search=permissionprompt&amp;detailView=event%2Fsecurity.ui.permissionprompt.accept%23remove">whether the user accepted the request, denied permission, ignored the prompt, etc</a>.</p>
+<p>We enrolled a random 0.1% of users into this study for a week, and then let sites build up a track record for a few weeks: the telemetry reports the number of times the user has previously denied a site’s request since we started recording this telemetry, and we really want to know the number of times that this has happened ever. Since we can’t measure the latter quantity, we approximate “forever” by “a few weeks”. <em>cough</em></p>
+<p>New users pose a slightly different challenge: if we ignore their first few weeks of data then the data we look at isn’t really from “new users”. But on the other hand, we know that we started recording this telemetry from pretty much the first time the user installed the browser, so we don’t have the aforementioned “forever” problem. Therefore we separately analyse the telemetry from new users’ first three weeks.</p>
+</div>
+<div id="results" class="section level1">
+<h1>Results</h1>
+<div id="all-users" class="section level2">
+<h2>All users</h2>
+<p>We received telemetry regarding 217K permission prompts in one week. We discarded data about 11% of prompts, coming from the approximately 40 users who had &gt;200 prompts in the week.</p>
+<figure>
+<img src="left_or_denied.png">
+<figcaption>
+Figure 1: User actions by the number of times the user had previously ignored or denied permission to this site.
+</figcaption>
+</figure>
+<p>Figure 1 shows that the first time “ever” a user is prompted for permission to send notifications on a given site, 2.4% of requests are granted (the blue bar labelled ‘accept’, for x=0). 45% of such requests are ignored (the orange bar labelled ‘leave’). For 48% of requests, the user takes the time to click “Not Now”. Only 1.4% of users locate the “Never allow” option.</p>
+<p>Moving our gaze rightwards along the x axis, we see that repeated prompts are less likely to be accepted than the first prompt. They are also less likely to be explicitly denied: our users become weary of interacting with the notification prompt and just start to ignore it.</p>
+<p>The unlabelled blue line on Figure 1 shows that only 35% of prompts in the study period were “fresh” - for the rest of them, the user had at least once previously either denied permission or ignored the prompt.</p>
+<p>Now for some related numbers that are not directly represented on Figure 1:</p>
+<ul>
+<li>Out of all accepted prompts, roughly 74% were accepted the first time: the user had not “ever” ignored/left a prompt or denied notification permissions to that site before.</li>
+<li>91% of accepts were made without the prompt being ignored or denied three or more times.</li>
+<li>95% of accepts were made without the prompt being ignored or denied five or more times.</li>
+</ul>
+<div id="action-by-number-of-denied-prompts" class="section level3">
+<h3>Action by number of <em>denied</em> prompts</h3>
+<figure>
+<img src="denied.png">
+<figcaption>
+Figure 2: User actions by the number of times the user had previously denied permission to this site.
+</figcaption>
+</figure>
+<p>The difference between Figures 1 and 2 is that Figure 1 counts the number of times a prompt had been ignored or denied by the user for the site, whereas Figure 2 only counts the number of times it had been denied. The march of the green bars shows that the more times a user has previously clicked “Not Now”, the more likely they are to click it the next time.</p>
+<p>Given one previous deny, the accept rate drops to 0.8%.</p>
+<p>Out of all accepted prompts, roughly 85% were accepted without the user “ever” having previously clicked “Not Now”. I wonder how many of the remaining 15% of accepts were from misclicks or frustrated users attempting to make the prompts go away.</p>
+</div>
+<div id="action-by-number-of-ignored-prompts" class="section level3">
+<h3>Action by number of <em>ignored</em> prompts</h3>
+<figure>
+<img src="left.png">
+<figcaption>
+Figure 3: User actions by the number of times the user had previously ignored permission prompts for this site.
+</figcaption>
+</figure>
+<p>Figure 3 shows that ignoring a prompt is a similarly strong signal to clicking “Not now”. From 0 to 1 previously ignored prompt on the site, the accept rate drops from 2% to 0.8%.</p>
+</div>
+<div id="action-by-whether-the-prompt-was-made-before-user-input" class="section level3">
+<h3>Action by whether the prompt was made before user input</h3>
+<p>Some sites ask for notification permissions upon page load. Others only ask the question if they have a reasonable expectation that the answer will be “yes” - typically this latter case will happen after the user has interacted with the page.</p>
+<p>Overall, the accept rate for prompts without previous user interaction was 1%, whereas the accept rate for prompts with interaction was 17%.</p>
+<p>Taking a cue from the earlier sections and considering only first-time-for-this-site prompts, pre-interaction prompts had a 2% success rate, compared to a 24% success rate for post-interaction prompts.</p>
+<p>Note that post-interaction prompts are sadly rare on today’s web: there were only 785 post-interaction first-time prompts in the dataset, compared to 66413 pre-interaction first-time prompts. So the post-interaction accepts only represent 11% of all accepts.</p>
+</div>
+</div>
+<div id="new-users" class="section level2">
+<h2>New users</h2>
+<p>While the “All users” data gives us a snapshot of the typical user experience (albeit with caveats such as those around the words “forever” and “ever”), it’s also important to consider the new user experience. Existing users have typically already granted permissions to their everyday webapps like Gmail and Slack, and if we don’t consider new users’ behaviour then we risk damaging their experience.</p>
+<figure>
+<img src="new_left_or_denied.png">
+<figcaption>
+Figure 4: New users’ actions by the number of times the user had previously ignored or denied permission to this site.
+</figcaption>
+</figure>
+<p>Comparing Figure 4 to the analogous Figure 1, we see that new users start with a much higher accept rate: 9%. Some of this difference is likely caused by the “forever” caveat distorting Figure 1, some of it will be the different mix of sites prompting for permission (by design we can’t tell this from telemetry, but I bet many of these accepts are for Gmail), and some of it could be that these fresh users have yet to be trained to ignore the prompt or reflexively click “Not now”.</p>
+<p>As prompts are ignored or denied, the 9% accept rate drops to 5%, then 2.7%. From the 10th deny or leave onwards, the accept rate is 0.36%.</p>
+<p>Numbers not from the graph:</p>
+<ul>
+<li>For new users, 77% of granted permissions happen without the prompt ever being ignored or denied.</li>
+<li>87% happen without the prompt ever being denied.</li>
+<li>97% of granted permissions happen with the prompt being ignored or denied less than 5 times.</li>
+<li>The first time a prompt is shown for a site, pre-interaction prompts have a 7.6% accept rate, whereas post-interaction prompts have a whopping 56% accept rate.</li>
+</ul>
+</div>
+</div>
+<div id="references" class="section level1">
+<h1>References</h1>
+<p><a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1540808">Bug</a></p>
+</div>
+
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
