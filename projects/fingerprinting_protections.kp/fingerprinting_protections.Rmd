@@ -21,7 +21,7 @@ There is a small but statistically significant drop in retention, affecting ligh
 
 From [the experimenter page (non-public page)](https://experimenter.services.mozilla.com/experiments/fingerprinting-protections-retention-study/):
 
-> We plan to study the effect of fingerprinting protections for 0.9% of users. Churn will be monitored during the study to inform a decision whether to move fingerprinting protections to Standard tracking Protection in Firefox 70.
+> We plan to study the effect of fingerprinting protections for 0.9% of users. Churn will be monitored during the study to inform a decision whether to move fingerprinting protections to Standard Tracking Protection in Firefox 70.
 
 In the control branch, browser fingerprinting JS blocking was not enabled. In the test branch (named “treatment”), fingerprinting blocking was enabled.
 
