@@ -1,5 +1,5 @@
 ---
-title: Fingerprint protections experiment report
+title: Fingerprinting protections experiment report
 author: Felix Lawrence
 date: 'Last Updated: 7 November 2019'
 output:
