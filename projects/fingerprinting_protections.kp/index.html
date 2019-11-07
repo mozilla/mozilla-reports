@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+
+<meta charset="utf-8" />
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="pandoc" />
+
+
+<meta name="author" content="Felix Lawrence" />
+
+
+<title>Fingerprinting protections experiment report</title>
+
+<script src="index_files/jquery-1.11.3/jquery.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="index_files/bootstrap-3.3.5/css/cosmo.min.css" rel="stylesheet" />
+<script src="index_files/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="index_files/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="index_files/bootstrap-3.3.5/shim/respond.min.js"></script>
+<script src="index_files/jqueryui-1.11.4/jquery-ui.min.js"></script>
+<link href="index_files/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="index_files/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="index_files/navigation-1.1/tabsets.js"></script>
+<link href="index_files/highlightjs-9.12.0/default.css" rel="stylesheet" />
+<script src="index_files/highlightjs-9.12.0/highlight.js"></script>
+
+<style type="text/css">code{white-space: pre;}</style>
+<style type="text/css">
+  pre:not([class]) {
+    background-color: white;
+  }
+</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+<style type="text/css">
+h1 {
+  font-size: 34px;
+}
+h1.title {
+  font-size: 38px;
+}
+h2 {
+  font-size: 30px;
+}
+h3 {
+  font-size: 24px;
+}
+h4 {
+  font-size: 18px;
+}
+h5 {
+  font-size: 16px;
+}
+h6 {
+  font-size: 12px;
+}
+.table th:not([align]) {
+  text-align: left;
+}
+</style>
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+code {
+  color: inherit;
+  background-color: rgba(0, 0, 0, 0.04);
+}
+img {
+  max-width:100%;
+  height: auto;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+</style>
+
+
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "&#xe258;";
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
+</script>
+
+<!-- code folding -->
+
+
+
+<script>
+$(document).ready(function ()  {
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_').toLowerCase();
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+  padding-left: 25px;
+  text-indent: 0;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row-fluid">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="fluid-row" id="header">
+
+
+
+<h1 class="title toc-ignore">Fingerprinting protections experiment report</h1>
+<h4 class="author">Felix Lawrence</h4>
+<h4 class="date">Last Updated: 7 November 2019</h4>
+
+</div>
+
+
+<style>figure {padding: 2em;}</style>
+<div id="tldr" class="section level1">
+<h1>TL;DR</h1>
+<p>There is a small but statistically significant drop in retention, affecting light and heavy users alike. By the 6th week after enrollment, between 0.2% and 0.6% fewer users were active.</p>
+</div>
+<div id="experimental-design" class="section level1">
+<h1>Experimental design</h1>
+<p>From <a href="https://experimenter.services.mozilla.com/experiments/fingerprinting-protections-retention-study/">the experimenter page (non-public page)</a>:</p>
+<blockquote>
+<p>We plan to study the effect of fingerprinting protections for 0.9% of users. Churn will be monitored during the study to inform a decision whether to move fingerprinting protections to Standard Tracking Protection in Firefox 70.</p>
+</blockquote>
+<p>In the control branch, browser fingerprinting JS blocking was not enabled. In the test branch (named “treatment”), fingerprinting blocking was enabled.</p>
+<p>The concern is that fingerprinting protections might break websites, or make the internet a less friendly place (with more captchas), and we seek to detect this via increased churn or reduced usage.</p>
+</div>
+<div id="active-hours" class="section level1">
+<h1>Active hours</h1>
+<figure>
+<img src="fig_1.png">
+<figcaption>
+Figure 1. (left, upper): Mean active hours per user in each week after enrollment. (left, lower): Test branch uplift in mean active hours per user. (right, upper): Fraction of users with &gt;0 active hours in each week after enrollment. (right, lower): Test branch uplift in this fraction. Thick lines represent the 95% credible interval; thin lines represent the 99.5% credible interval.
+</figcaption>
+</figure>
+<p>Fig. 1 (left) shows that each week after enrollment, there is at worst a 2% drop in mean active hours per user, and at best a ~4% increase (considering the 95% CI, the thick lines). Great: no statistically significant change, and we’re fairly sure that the change won’t be worse than a 2% drop.</p>
+<p>However, Fig. 1 (right) has enough precision to tell a different story: in the test branch, a small fraction of users churn some time in the first week and don’t return (i.e. have 0 active hours in following weeks, when we would expect them to have &gt;0 active hours). This fraction is quite small: retention in the second week drops by between 0.1% and 0.4%; by the 6th week after enrollment it drops by between 0.2% and 0.6%. It is tempting to read this graph as having a retention difference that increases over time, though it’s not immediately apparent from this analysis whether this is a real effect or a fluke.</p>
+<p>Figure 1 (right) shows the effect on whether users are active at all in each week, but it can be instructive to look at more thresholds of activity to see whether heavy users are also affected. Figure 2 shows a generalisation to many thresholds, for users’ 1st (left graphs) and 6th (right graphs) weeks in the experiment.</p>
+<figure>
+<img src="fig_2.png">
+<figcaption>
+Figure 2. (upper): Survival functions of users’ active hours for each branch in the 1st (left) and 6th (right) weeks in the experiment. x=0 in the left and right graphs respectively show the same data as x=0 and x=35 in Fig 1 (upper right). (lower): Uplift in the survival functions; relative change in the fraction of users with &gt;x active hours in that week.
+</figcaption>
+</figure>
+<p>Figure 2 (right) has the simpler story; let’s start with it. In the 6th week in the experiment, we expect a drop in retention across all kinds of users. For larger thresholds, above 5 active hours, the drop is no longer significant at 99.5%, but this is due to an increase in uncertainty rather than significantly different behaviour. So as well as there being a significant drop in the number of users with any activity, there is a significant drop in the number of users with &gt;5 active hours. It looks like an across the board drop that we should assume hits heavy users proportionately to light users.</p>
+<p>Figure 2 (left) is more nuanced: there is not a significant drop at x=0 and the CI is very narrow around “no change”. The 95% confidence interval drops below zero at x=1: there is a &gt;95% probability of a drop in the fraction of users with &gt;1 active hour in the first week following enrollment. So either users reduce their usage within an hour or so of post-enrollment activity, or we were unlucky.</p>
+<p>Given that we <em>do</em> see a significant drop at x=0 in the following weeks, I would draw the conclusion that the test branch is churning between 0.2% and 0.6% of users by the 6th week, irrespective of the users’ natural activity levels, and that the effect likely first becomes visible after a few hours of usage, and possibly churns more users with each passing week. Despite the statistical significance of these results, this is a relatively small fraction, so it might not rule out the possibility of rolling out this feature to gather more breakage reports or to drive more publishers to fix their sites.</p>
+</div>
+<div id="uri-count" class="section level1">
+<h1>Uri count</h1>
+<figure>
+<img src="fig_3.png">
+<figcaption>
+Figure 3. (left, upper): Mean URIs browsed per user in each week after enrollment. (left, lower): Test branch uplift in URIs per user. (right, upper): Fraction of users with &gt;0 URIs in each week after enrollment. (right, lower): Test branch uplift in this fraction.
+</figcaption>
+</figure>
+<p>Stop me if you’ve heard this before: there is no detectable change in mean URIs browsed per user in any week (Figure 3 (left)); and a small significant drop in the fraction of users visiting at least one URI in each of weeks 2-6, with between a 0.3% and 0.6% drop in the fraction of users with any browsing activity in week 6 (Figure 3 (right)).</p>
+<p>The survival function for URIs browsed in the 6th week (Figure 4) is also similar to the survival function for active hours in the 6th week (Figure 2 (right)). Figure 4 is most consistent with an effect that is stronger for people who would normally browse more URIs, but the credible intervals are large enough that it is also consistent with an effect that hits all users equally (the line in Fig 4 (lower) trends downwards, but the surrounding shaded credible intervals (CIs) grow fast enough that the top edge of the CI does not convincingly drop.</p>
+<figure>
+<img src="uri_surv.png">
+<figcaption>
+Figure 4. (upper): Survival functions of users’ URIs browsed for each branch in the 6th week in the experiment. (lower): Uplift in the survival function; relative change in the fraction of users with &gt;x URIs browsed in that week.
+</figcaption>
+</figure>
+<div id="references" class="section level2">
+<h2>References</h2>
+<p><a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1562545">Bug</a></p>
+</div>
+</div>
+
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
