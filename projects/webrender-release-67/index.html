@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+
+<meta charset="utf-8" />
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="pandoc" />
+
+
+<meta name="author" content="Tim D. Smith tdsmith@mozilla.com" />
+
+<meta name="date" content="2019-07-02" />
+
+<title>Webrender Release 67 experiment draft report</title>
+
+<script src="20190627-wr67_release_files/jquery-1.11.3/jquery.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="20190627-wr67_release_files/bootstrap-3.3.5/css/bootstrap.min.css" rel="stylesheet" />
+<script src="20190627-wr67_release_files/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="20190627-wr67_release_files/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="20190627-wr67_release_files/bootstrap-3.3.5/shim/respond.min.js"></script>
+<script src="20190627-wr67_release_files/jqueryui-1.11.4/jquery-ui.min.js"></script>
+<link href="20190627-wr67_release_files/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="20190627-wr67_release_files/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="20190627-wr67_release_files/navigation-1.1/tabsets.js"></script>
+<link href="20190627-wr67_release_files/highlightjs-9.12.0/default.css" rel="stylesheet" />
+<script src="20190627-wr67_release_files/highlightjs-9.12.0/highlight.js"></script>
+
+<style type="text/css">code{white-space: pre;}</style>
+<style type="text/css">
+  pre:not([class]) {
+    background-color: white;
+  }
+</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+<style type="text/css">
+h1 {
+  font-size: 34px;
+}
+h1.title {
+  font-size: 38px;
+}
+h2 {
+  font-size: 30px;
+}
+h3 {
+  font-size: 24px;
+}
+h4 {
+  font-size: 18px;
+}
+h5 {
+  font-size: 16px;
+}
+h6 {
+  font-size: 12px;
+}
+.table th:not([align]) {
+  text-align: left;
+}
+</style>
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+code {
+  color: inherit;
+  background-color: rgba(0, 0, 0, 0.04);
+}
+img {
+  max-width:100%;
+  height: auto;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+</style>
+
+
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "&#xe258;";
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
+</script>
+
+<!-- code folding -->
+
+
+
+<script>
+$(document).ready(function ()  {
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_').toLowerCase();
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row-fluid">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="fluid-row" id="header">
+
+
+
+<h1 class="title toc-ignore">Webrender Release 67 experiment draft report</h1>
+<h4 class="author">Tim D. Smith <a href="mailto:tdsmith@mozilla.com" class="email">tdsmith@mozilla.com</a></h4>
+<h4 class="date">2019-07-02</h4>
+
+</div>
+
+
+<p>Performance endpoints:</p>
+<table>
+<colgroup>
+<col width="17%" />
+<col width="28%" />
+<col width="32%" />
+<col width="21%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Probe</th>
+<th>Success?</th>
+<th>Criterion</th>
+<th>Actual</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>COMPOSITE_TIME</code></td>
+<td><span class="emoji" data-emoji="white_check_mark">✅</span></td>
+<td>Median per-user fraction of slow frames &lt; 0.5% (absolute)</td>
+<td>0.15% slow</td>
+</tr>
+<tr class="even">
+<td><code>CONTENT_FRAME_TIME_VSYNC</code></td>
+<td><span class="emoji" data-emoji="white_check_mark">✅</span></td>
+<td>≤ 5% regression in median of per-user fraction of slow events</td>
+<td>No difference</td>
+</tr>
+<tr class="odd">
+<td><code>CONTENT_FULL_PAINT_TIME</code></td>
+<td><span class="emoji" data-emoji="white_check_mark">✅</span></td>
+<td>≤ 5% regression in median fraction of slow paints (&gt; 16 ms)</td>
+<td>50.2-52.0% improvement</td>
+</tr>
+<tr class="even">
+<td><code>CONTENT_FULL_PAINT_TIME</code></td>
+<td><span class="emoji" data-emoji="x">❌</span></td>
+<td>≤ 5% regression in median of per-user means</td>
+<td>8.9-9.9% regression</td>
+</tr>
+<tr class="odd">
+<td><code>FX_PAGE_LOAD_MS_2</code></td>
+<td><span class="emoji" data-emoji="white_check_mark">✅</span></td>
+<td>≤ 5% regression in median of per-user means</td>
+<td>No difference</td>
+</tr>
+<tr class="even">
+<td><code>FX_TAB_SWITCH_COMPOSITE_E10S_MS</code></td>
+<td><span class="emoji" data-emoji="white_check_mark">✅</span></td>
+<td>≤ 5% regression in median of per-user means</td>
+<td>2.1-2.7% improvement</td>
+</tr>
+<tr class="odd">
+<td><code>CHECKERBOARD_SEVERITY</code></td>
+<td><span class="emoji" data-emoji="white_check_mark">✅</span></td>
+<td>≤ 5% regression in rate of severe checkerboarding events per usage hour</td>
+<td>3.2% regression</td>
+</tr>
+</tbody>
+</table>
+<p>Stability endpoints:</p>
+<table>
+<colgroup>
+<col width="26%" />
+<col width="23%" />
+<col width="30%" />
+<col width="20%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Endpoint</th>
+<th>Success</th>
+<th>Criterion</th>
+<th>Actual</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Overall crash reports</td>
+<td><span class="emoji" data-emoji="white_check_mark">✅</span></td>
+<td>≤ 5% increase in crash rate</td>
+<td>2.8% increase in crash rate</td>
+</tr>
+<tr class="even">
+<td>OOM crash reports</td>
+<td><span class="emoji" data-emoji="white_check_mark">✅</span></td>
+<td>≤ 5% increase in crash rate</td>
+<td>12% decrease in OOM crashes</td>
+</tr>
+<tr class="odd">
+<td><code>CANVAS_WEBGL_SUCCESS</code></td>
+<td><span class="emoji" data-emoji="white_check_mark">✅</span></td>
+<td>≤ 5% regression in median of fraction “True” per user</td>
+<td>No difference</td>
+</tr>
+<tr class="even">
+<td><code>DEVICE_RESET_REASON</code></td>
+<td><span class="emoji" data-emoji="white_check_mark">✅</span></td>
+<td>≤ 5% increase in reset rate</td>
+<td>57% decrease in device resets</td>
+</tr>
+</tbody>
+</table>
+<p>The higher crash rate in the WebRender branch is attributable to an increase in the rate of GPU process crashes. Main and content process crash rates fell.</p>
+<p>Retention and engagement metrics were not affected.</p>
+<div id="introduction" class="section level1">
+<h1><span class="header-section-number">1</span> Introduction</h1>
+<p><a href="https://hacks.mozilla.org/2017/10/the-whole-web-at-maximum-fps-how-webrender-gets-rid-of-jank/">WebRender</a> is a new technology for getting webpages onto the screen using a GPU. In <a href="https://experimenter.services.mozilla.com/experiments/webrender-performance-67/">this experiment</a>, we enabled WebRender for users in the Firefox 67 release channel running Windows 10 with certain Nvidia GPU chipsets.</p>
+<p>This experiment followed a [very similar experiment][<a href="https://mozilla.report/post/projects/webrender-release-66/index.html" class="uri">https://mozilla.report/post/projects/webrender-release-66/index.html</a>] in release 66, and served as a monitoring canary for a simultaneous <a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1541488">staged rollout</a> that delivered WebRender to all Windows 10 desktop users with an allowlisted GPU model during the 67 release cycle.</p>
+<p>We have been running a <a href="https://metrics.mozilla.com/webrender/">separate ongoing experiment</a> in the beta and nightly channels to guide development, observing how performance changes on a build-by-build basis. This report does not describe that work.</p>
+</div>
+<div id="results" class="section level1">
+<h1><span class="header-section-number">2</span> Results</h1>
+<div id="performance" class="section level2">
+<h2><span class="header-section-number">2.1</span> Performance</h2>
+<p>Before computing results for performance endpoints, user sessions were filtered to ensure that the compositor for the telmetry session matched the enrolled branch. The first telemetry session after a user enrolled was dropped for users in both branches, because the user needs to restart the browser after enrolling for WebRender to be enabled. (The enrollment session was chosen by identifying the session containing the lowest <code>profile_subsession_counter</code> for each <code>client_id</code>.) Users who unenrolled from the experiment were excluded after unenrollment.</p>
+<p>This avoids a minimizing bias that could result from contaminating the results for the treatment branch with results from users that were not exposed to the treatment. The approach may overestimate the actual effect of WebRender on the population if a non-random set of users (e.g. users with poor performance) were more likely to unenroll from the experiment, but this is unlikely because unenrollments were rare, and balanced between the experiment and control branches (see “Enrollment” below).</p>
+<div id="continuous-endpoints" class="section level3">
+<h3><span class="header-section-number">2.1.1</span> Continuous endpoints</h3>
+<table>
+<thead>
+<tr class="header">
+<th align="left">Metric</th>
+<th align="right">Median per-user mean, as WR % of Gecko</th>
+<th align="right">95% CI (low)</th>
+<th align="right">95% CI (high)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">content_full_paint_time</td>
+<td align="right">108.60</td>
+<td align="right">108.06</td>
+<td align="right">109.14</td>
+</tr>
+<tr class="even">
+<td align="left">page_load_ms</td>
+<td align="right">100.08</td>
+<td align="right">99.48</td>
+<td align="right">100.66</td>
+</tr>
+<tr class="odd">
+<td align="left">tab_switch_composite</td>
+<td align="right">97.60</td>
+<td align="right">97.32</td>
+<td align="right">97.90</td>
+</tr>
+</tbody>
+</table>
+<p>Median per-user mean values of <code>content_full_paint_time</code> were about 8% higher in the WebRender case. Page load times did not change. Tab switch time decreased a little more than 2%.</p>
+<p>The distribution of each metric will be discussed in the following subsections, which is a pattern that will continue in this report.</p>
+<div id="content-paint-time" class="section level4">
+<h4><span class="header-section-number">2.1.1.1</span> Content paint time</h4>
+<p>WebRender users tended to have a somewhat higher average CONTENT_FULL_PAINT_TIME, though WebRender users were less likely to have slow (&gt; 16 ms) events (discussed below).</p>
+<p><img src="20190627-wr67_release_files/figure-html/content_full_paint_time_cont_cdf-1.png" width="768" /></p>
+</div>
+<div id="page-load-time" class="section level4">
+<h4><span class="header-section-number">2.1.1.2</span> Page load time</h4>
+<p>The per-user-mean page load time distributions were essentially identical between WebRender and Gecko users.</p>
+<p><img src="20190627-wr67_release_files/figure-html/page_load_time_time_cont_cdf-1.png" width="768" /></p>
+</div>
+<div id="tab-switch-time" class="section level4">
+<h4><span class="header-section-number">2.1.1.3</span> Tab switch time</h4>
+<p>The median per-user average tab switch was slightly faster with WebRender. The fastest tab switches took longer with WebRender enabled, but the slowest tab switches took less time.</p>
+<p><img src="20190627-wr67_release_files/figure-html/tab_switch_time_cont_cdf-1.png" width="768" /></p>
+</div>
+</div>
+<div id="thresholded-absolute-endpoints-composite-time" class="section level3">
+<h3><span class="header-section-number">2.1.2</span> Thresholded absolute endpoints (composite time)</h3>
+<p>The criterion for <code>COMPOSITE_TIME</code> was that the median per-user slow fraction should be &lt; 0.5%.</p>
+<p><img src="20190627-wr67_release_files/figure-html/composite_time_cdf-1.png" width="768" /></p>
+<p>The median fraction of slow composites is much higher in the WebRender branch compared to the Gecko branch, but lower than the 0.5% threshold:</p>
+<table>
+<thead>
+<tr class="header">
+<th align="left">Branch</th>
+<th align="right">Median per-user slow composites (percent)</th>
+<th align="right">95% CI (low)</th>
+<th align="right">95% CI (high)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">WebRender</td>
+<td align="right">0.1493</td>
+<td align="right">0.1477</td>
+<td align="right">0.1511</td>
+</tr>
+<tr class="even">
+<td align="left">Gecko</td>
+<td align="right">0.0146</td>
+<td align="right">0.0144</td>
+<td align="right">0.0148</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="thresholded-comparative-endpoints" class="section level3">
+<h3><span class="header-section-number">2.1.3</span> Thresholded comparative endpoints</h3>
+<table>
+<thead>
+<tr class="header">
+<th align="left">Metric</th>
+<th align="right">Median per-user fraction, as WR % of Gecko</th>
+<th align="right">95% CI (low)</th>
+<th align="right">95% CI (high)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">content_frame_time_vsync (&gt; 200)</td>
+<td align="right">100.21</td>
+<td align="right">99.21</td>
+<td align="right">101.06</td>
+</tr>
+<tr class="even">
+<td align="left">content_full_paint_time (&gt; 16)</td>
+<td align="right">48.87</td>
+<td align="right">48.13</td>
+<td align="right">49.63</td>
+</tr>
+</tbody>
+</table>
+<p>The mean per-user fraction of slow <code>content_frame_time_vsync</code> events was similar in the WebRender branch.</p>
+<p>The mean per-user fraction of slow <code>content_full_paint_time</code> events was about halved in the WebRender branch.</p>
+<div id="content-frame-time" class="section level4">
+<h4><span class="header-section-number">2.1.3.1</span> Content frame time</h4>
+<p>The median WebRender and Gecko user experienced very similar fractions of slow CONTENT_FRAME_TIME_VSYNCs (&gt; 200% vsync).</p>
+<p>The fraction of slow frames was somewhat lower for the fastest half and higher for the slowest half of WebRender users compared to Gecko.</p>
+<p><img src="20190627-wr67_release_files/figure-html/content_frame_paint_time_cdf-1.png" width="768" /></p>
+</div>
+<div id="content-paint-time-1" class="section level4">
+<h4><span class="header-section-number">2.1.3.2</span> Content paint time</h4>
+<p>The median WebRender user experienced considerably fewer slow paints (&gt; 16 ms) than the median Gecko user.</p>
+<p>The worst-performing 20% of users in the WebRender and Gecko branches had similar slow paint fractions.</p>
+<p><img src="20190627-wr67_release_files/figure-html/content_full_paint_time_cdf-1.png" width="768" /></p>
+</div>
+</div>
+<div id="checkerboarding" class="section level3">
+<h3><span class="header-section-number">2.1.4</span> Checkerboarding</h3>
+<p>Checkerboarding refers to artefacts caused during scrolling when paints during successive frames of the scroll event are incomplete. The <code>CHECKERBOARD_SEVERITY</code> probe <a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1238040#c8">measures the area of the underpainted region times the duration of the event</a> in arbitrary units (au).</p>
+<p>Based on the <a href="https://mzl.la/2XfDfK1">observed distribution</a> of the metric, I took 500 au as an empirical threshold for “severe” checkerboarding events. Many users will eventually encounter a severe event, but they are infrequent enough that estimating a per-user frequency with precision is difficult.</p>
+<p>Instead, I present the rate per 1,000 usage hours over the population:</p>
+<p><img src="20190627-wr67_release_files/figure-html/checkerboard_events-1.png" width="768" /></p>
+<p>This shows a 3% excess of severe checkerboarding events in the WebRender branch. Error bars are 95% CIs for Poisson events.</p>
+</div>
+</div>
+<div id="stability" class="section level2">
+<h2><span class="header-section-number">2.2</span> Stability</h2>
+<p>Sessions were filtered for stability in the same manner as for performance.</p>
+<p>Despite a clear increase in GPU process crashes, the overall crash rate was only slightly higher because the number of main and content process crashes fell.</p>
+<div id="overall-crash-reports" class="section level3">
+<h3><span class="header-section-number">2.2.1</span> Overall crash reports</h3>
+<p><img src="20190627-wr67_release_files/figure-html/total_crashes-1.png" width="768" /></p>
+<p><img src="20190627-wr67_release_files/figure-html/fraction_any_crashes-1.png" width="768" /></p>
+</div>
+<div id="per-process-crash-reports" class="section level3">
+<h3><span class="header-section-number">2.2.2</span> Per-process crash reports</h3>
+<p><img src="20190627-wr67_release_files/figure-html/process_crashes-1.png" width="768" /></p>
+<p><img src="20190627-wr67_release_files/figure-html/fraction_process_crashes-1.png" width="768" /></p>
+</div>
+<div id="oom-crash-reports" class="section level3">
+<h3><span class="header-section-number">2.2.3</span> OOM crash reports</h3>
+<p><img src="20190627-wr67_release_files/figure-html/oom_crashes-1.png" width="768" /></p>
+<p>OOM crashes are a subset of <code>main</code> process crashes. They were less common in the WebRender branch.</p>
+</div>
+<div id="webgl-canvas-construction" class="section level3">
+<h3><span class="header-section-number">2.2.4</span> WebGL canvas construction</h3>
+<p>Failure to create a WebGL canvas was rare in either branch. This is reflected in the per-user average fraction of canvas creation successes:</p>
+<table>
+<thead>
+<tr class="header">
+<th align="left">branch</th>
+<th align="right">average_success_fraction</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Gecko</td>
+<td align="right">0.9995051</td>
+</tr>
+<tr class="even">
+<td align="left">WebRender</td>
+<td align="right">0.9996397</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="device-resets" class="section level3">
+<h3><span class="header-section-number">2.2.5</span> Device resets</h3>
+<p><img src="20190627-wr67_release_files/figure-html/reset_crashes-1.png" width="768" /></p>
+</div>
+</div>
+<div id="engagement" class="section level2">
+<h2><span class="header-section-number">2.3</span> Engagement</h2>
+<p>Retention and engagement metrics were observed for all enrolled users from the moment of enrollment; filtering was not performed to ensure that the compositor matched the enrolled branch, and enrollment sessions were not discarded.</p>
+<div id="uri-count" class="section level3">
+<h3><span class="header-section-number">2.3.1</span> URI count</h3>
+<p>There was a small decline in the number of URIs visited by the least active users.</p>
+<p><img src="20190627-wr67_release_files/figure-html/total_uri_cdf-1.png" width="768" /></p>
+<p>Computing bootstrapped 95% confidence intervals for the difference between the distributions along the curve, the 10th and 25th percentiles of the userbase in each branch reflected less usage in the WebRender branch:</p>
+<p><img src="20190627-wr67_release_files/figure-html/total_uri_quantiles-1.png" width="768" /></p>
+<p>A 10% decrease at the 10th percentile corresponds to about 1 fewer URI. A 2.5% decrease at the 25th percentile corresponds to a shift from 300 to 293 URIs.</p>
+</div>
+<div id="active-time" class="section level3">
+<h3><span class="header-section-number">2.3.2</span> Active time</h3>
+<p>The distribution of per-user active time also showed a slight decrease for less active users:</p>
+<p><img src="20190627-wr67_release_files/figure-html/active_time_cdf-1.png" width="768" /></p>
+<p>Active time may have decreased slightly for WebRender branch users among less avid users.</p>
+<p><img src="20190627-wr67_release_files/figure-html/active_time_quantiles-1.png" width="768" /></p>
+</div>
+<div id="total-time" class="section level3">
+<h3><span class="header-section-number">2.3.3</span> Total time</h3>
+<p>Distribution of total browser-open time also may have shown a small decrease for less avid users.</p>
+<p><img src="20190627-wr67_release_files/figure-html/session_time_cdf-1.png" width="768" /></p>
+<p>Similar to active time, less-avid users may have used the browser slightly less in the WebRender branch.</p>
+<p><img src="20190627-wr67_release_files/figure-html/session_time_quantiles-1.png" width="768" /></p>
+</div>
+</div>
+<div id="retention" class="section level2">
+<h2><span class="header-section-number">2.4</span> Retention</h2>
+<p>Retention was similar between the study branches.</p>
+<p><img src="20190627-wr67_release_files/figure-html/retention-1.png" width="768" /></p>
+<p>Retention may have been slightly lower for the WebRender branch at 3 weeks. The 95% confidence interval for the true difference between the branches was at least -0.03% and at most 0.56%.</p>
+</div>
+<div id="enrollment" class="section level2">
+<h2><span class="header-section-number">2.5</span> Enrollment</h2>
+<p>Daily enrollment and unenrollment were symmetric between branches.</p>
+<p>Enrollment was exaggerated because the recipe was not written to filter by <code>wrQualified</code> status.</p>
+<p><img src="20190627-wr67_release_files/figure-html/cumulative_enrollment-1.png" width="768" /></p>
+<p>Unenrollments were minimal and distributed equally between branches.</p>
+<p><img src="20190627-wr67_release_files/figure-html/cumulative_unenrollment-1.png" width="768" /></p>
+</div>
+</div>
+<div id="conclusions" class="section level1">
+<h1><span class="header-section-number">3</span> Conclusions</h1>
+<ul>
+<li>The WebRender experiment met all but one of the performance goals. Although the median per-user mean <code>CONTENT_FULL_PAINT_TIME</code> increased, the number of measurements greater than 16 ms (=1/60 Hz) actually decreased. Because most users have a 60 Hz refresh rate, this may not be a generally user-visible regression.</li>
+<li>The WebRender experiment had generally salutary effects on stability, except for an increase in GPU process crashes. Main process and content process crashes, which are more visible to the user, decreased.</li>
+<li>The WebRender experiment did not have clear impacts on user engagement or retention, although there may have been a small decrease in usage, as measured by active hours, URIs visited, and total session time among the least avid users in the experiment.</li>
+</ul>
+</div>
+<div id="methods" class="section level1">
+<h1><span class="header-section-number">4</span> Methods</h1>
+<p>The <a href="https://experimenter.services.mozilla.com/experiments/webrender-performance-67/"><code>pref-flip-webrender-perf67-1526094</code> experiment</a> enrolled users in Firefox 66 who met the <code>normandy.telemetry.main.environment.system.gfx.features.wrQualified.status == 'available'</code> criterion. At the time of the study, this enrolled users running Windows 10 on systems without a battery and having one of a list of allowlisted graphics cards.</p>
+<p>ETL was computed by two notebooks:</p>
+<ul>
+<li><a href="https://dbc-caf9527b-e073.cloud.databricks.com/#notebook/137573/command/137583">Engagement and retention</a></li>
+<li><a href="https://dbc-caf9527b-e073.cloud.databricks.com/#notebook/124963">Performance</a></li>
+</ul>
+</div>
+
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
