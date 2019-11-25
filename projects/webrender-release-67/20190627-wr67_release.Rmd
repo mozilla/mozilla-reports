@@ -1,0 +1,719 @@
+---
+title: "Webrender Release 67 experiment draft report"
+author: "Tim D. Smith <tdsmith@mozilla.com>"
+date: '2019-07-02'
+output:
+  html_document:
+    md_extensions: +emoji
+    toc: true
+    toc_float: true
+    number_sections: true
+    self_contained: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, fig.height=3, fig.width=8)
+
+library(broom)
+library(boot)
+library(dplyr)
+library(feather)
+library(ggplot2)
+library(readr)
+library(RSQLite)
+library(tidyr)
+
+requireNamespace("Hmisc")
+
+# https://dbc-caf9527b-e073.cloud.databricks.com/#notebook/124963/command/124998
+db = DBI::dbConnect(SQLite(), "20190528-wr67.sqlite")
+per_user = tbl(db, "per_user") %>% collect
+slow_stats = tbl(db, "slow_stats") %>% collect
+.crashes = tbl(db, "crashes") %>% collect
+crashes_per_process = tbl(db, "crashes_per_process") %>% collect
+users_with_crash = tbl(db, "users_with_crash") %>% collect
+
+
+DBI::dbDisconnect(db)
+
+# https://dbc-caf9527b-e073.cloud.databricks.com/#notebook/137573/command/137581
+engagement = read_feather("20190627-wr67_enagement.feather")
+
+retention = read_csv("branch,weeks_since_enrollment,n,week_0,fraction
+disabled,0,131524,131524,1.0
+disabled,1,120119,131524,0.9132857881451294
+disabled,2,117523,131524,0.8935479456220918
+disabled,3,107691,131524,0.8187935281773668
+enabled,0,130617,130617,1.0
+enabled,1,119217,130617,0.9127219274673282
+enabled,2,116685,130617,0.8933370081995452
+enabled,3,106599,130617,0.816118881921955
+")
+
+enroll_db = DBI::dbConnect(SQLite(), "20190627_wr67-enrollment.sqlite")
+enroll_daily = tbl(enroll_db, "enroll_daily") %>% collect
+unenroll_daily = tbl(enroll_db, "unenroll_daily") %>% collect
+DBI::dbDisconnect(enroll_db)
+
+N_BOOT = 400
+
+perf_medians = per_user %>%
+  group_by(branch, metric) %>%
+  summarize(
+    user_median=median(mean, na.rm=TRUE)
+  )
+
+transform_branch = function(df) {
+  mutate(df, branch=factor(branch, c("disabled", "enabled"), c("Gecko", "WebRender")))
+}
+
+poisson_ci = function(crash_count) {
+  tibble(
+    ymin=qchisq(0.025, 2*crash_count)/2,
+    y=crash_count,
+    ymax=qchisq(0.975, 2*(crash_count+1))/2
+  )
+}
+
+crashes = .crashes %>%
+  gather("crash", "count", total_crashes, oom_crashes, device_reset_reason_total, severe_checkerboard_events) %>%
+  group_by(branch, usage_hours, crash) %>%
+  do(poisson_ci(.$count)) %>%
+  ungroup
+
+any_crashes = users_with_crash %>%
+  distinct(client_id, branch) %>%
+  group_by(branch) %>%
+  summarize(affected=n()) %>%
+  left_join(retention %>% filter(weeks_since_enrollment == 0) %>% select(branch, enrolled=n), by="branch") %>%
+  mutate(fraction_affected=affected/enrolled) %>%
+  transform_branch() %>%
+  group_by_all() %>%
+  do(Hmisc::binconf(.$affected, .$enrolled, return.df=TRUE)) %>%
+  ungroup
+
+users_with_crashes_by_process = users_with_crash %>%
+  distinct(client_id, branch, process) %>%
+  group_by(branch, process) %>%
+  summarize(affected=n()) %>%
+  left_join(retention %>% filter(weeks_since_enrollment == 0) %>% select(branch, enrolled=n), by="branch") %>%
+  mutate(fraction_affected=affected/enrolled) %>%
+  ungroup %>%
+  transform_branch() %>%
+  group_by_all() %>%
+  do(Hmisc::binconf(.$affected, .$enrolled, return.df=TRUE)) %>%
+  ungroup
+```
+
+Performance endpoints:
+
+Probe | Success? | Criterion | Actual
+----- | -------- | --------- | ------
+`COMPOSITE_TIME` | :white_check_mark: | Median per-user fraction of slow frames < 0.5% (absolute) | 0.15% slow
+`CONTENT_FRAME_TIME_VSYNC` | :white_check_mark: | ≤ 5% regression in median of per-user fraction of slow events | No difference
+`CONTENT_FULL_PAINT_TIME` | :white_check_mark: | ≤ 5% regression in median fraction of slow paints (> 16 ms) | 50.2-52.0% improvement
+`CONTENT_FULL_PAINT_TIME` | :x: | ≤ 5% regression in median of per-user means | 8.9-9.9% regression
+`FX_PAGE_LOAD_MS_2` | :white_check_mark: | ≤ 5% regression in median of per-user means | No difference
+`FX_TAB_SWITCH_COMPOSITE_E10S_MS` | :white_check_mark: | ≤ 5% regression in median of per-user means | 2.1-2.7% improvement
+`CHECKERBOARD_SEVERITY` | :white_check_mark: | ≤ 5% regression in rate of severe checkerboarding events per usage hour | 3.2% regression
+
+Stability endpoints:
+
+Endpoint | Success | Criterion | Actual
+-------- | ------- | --------- | ------
+Overall crash reports | :white_check_mark: | ≤ 5% increase in crash rate | 2.8% increase in crash rate
+OOM crash reports | :white_check_mark: | ≤ 5% increase in crash rate | 12% decrease in OOM crashes
+`CANVAS_WEBGL_SUCCESS` | :white_check_mark: | ≤ 5% regression in median of fraction "True" per user | No difference
+`DEVICE_RESET_REASON` | :white_check_mark: | ≤ 5% increase in reset rate | 57% decrease in device resets
+
+The higher crash rate in the WebRender branch is attributable to an increase in the rate of GPU process crashes.
+Main and content process crash rates fell.
+
+Retention and engagement metrics were not affected.
+
+# Introduction
+
+[WebRender] is a new technology for getting webpages onto the screen using a GPU.
+In [this experiment][experimenter], we enabled WebRender for users in the Firefox 67 release channel
+running Windows 10 with certain Nvidia GPU chipsets.
+
+This experiment followed a [very similar experiment][https://mozilla.report/post/projects/webrender-release-66/index.html]
+in release 66, and served as a monitoring canary for a simultaneous
+[staged rollout](https://bugzilla.mozilla.org/show_bug.cgi?id=1541488)
+that delivered WebRender to all Windows 10 desktop users with an allowlisted GPU model during the 67 release cycle.
+
+We have been running a [separate ongoing experiment][dashboard] in the beta and nightly channels to guide development,
+observing how performance changes on a build-by-build basis. This report does not describe that work.
+
+[dashboard]: https://metrics.mozilla.com/webrender/
+[experimenter]: https://experimenter.services.mozilla.com/experiments/webrender-performance-67/
+[WebRender]: https://hacks.mozilla.org/2017/10/the-whole-web-at-maximum-fps-how-webrender-gets-rid-of-jank/
+
+# Results
+
+## Performance
+
+Before computing results for performance endpoints,
+user sessions were filtered to ensure that
+the compositor for the telmetry session matched the enrolled branch.
+The first telemetry session after a user enrolled was dropped for users in both branches,
+because the user needs to restart the browser after enrolling for WebRender to be enabled.
+(The enrollment session was chosen by identifying the session containing the lowest `profile_subsession_counter` for each `client_id`.)
+Users who unenrolled from the experiment were excluded after unenrollment.
+
+This avoids a minimizing bias that could result from contaminating the results for the treatment branch
+with results from users that were not exposed to the treatment.
+The approach may overestimate the actual effect of WebRender on the population
+if a non-random set of users (e.g. users with poor performance)
+were more likely to unenroll from the experiment,
+but this is unlikely because unenrollments were rare,
+and balanced between the experiment and control branches (see "Enrollment" below).
+
+
+### Continuous endpoints
+
+```{r summarize_perf}
+summarize_perf = function(df, var) {
+  mystat = function(data, indices) {
+    sample = data[indices,]
+    median(sample[sample$branch == "enabled",][[var]], na.rm=TRUE) / median(sample[sample$branch == "disabled",][[var]], na.rm=TRUE)
+  }
+
+  df %>%
+    boot(mystat, N_BOOT, strata=factor(df$branch), parallel="multicore", ncpus=4) %>%
+    tidy(conf.int=TRUE, conf.method="basic") * 100
+}
+
+perf_summary = per_user %>%
+  filter(!is.na(mean), metric != "content_frame_time_vsync", metric != "composite_time", metric != "webgl_success") %>%
+  group_by(metric) %>%
+  do(summarize_perf(., "mean"))
+
+perf_summary %>%
+  select(
+    Metric=metric,
+    `Median per-user mean, as WR % of Gecko`=statistic,
+    `95% CI (low)`=conf.low,
+    `95% CI (high)`=conf.high
+  ) %>%
+  knitr::kable(format.args=list(digits=3, nsmall=2))
+```
+
+Median per-user mean values of `content_full_paint_time` were about 8% higher in the WebRender case.
+Page load times did not change. Tab switch time decreased a little more than 2%.
+
+The distribution of each metric will be discussed in the following subsections,
+which is a pattern that will continue in this report.
+
+#### Content paint time
+
+WebRender users tended to have a somewhat higher average CONTENT_FULL_PAINT_TIME,
+though WebRender users were less likely to have slow (> 16 ms) events (discussed below).
+
+```{r content_full_paint_time_cont_cdf, warning=FALSE}
+per_user %>%
+  filter(metric == "content_full_paint_time") %>%
+  mutate(branch=factor(branch, c("enabled", "disabled"), c("WebRender", "Gecko"))) %>%
+  ggplot(aes(mean, color=branch)) +
+    geom_density(n=2048) +
+    scale_x_continuous(limits=c(0, 100)) +
+    coord_cartesian(xlim=c(0, 20)) +
+    scale_color_discrete("Branch") +
+    labs(x="Per-user average CONTENT_FULL_PAINT_TIME (ms)", title="Distribution of CONTENT_FULL_PAINT_TIME")
+```
+
+#### Page load time
+
+The per-user-mean page load time distributions were essentially identical between WebRender and Gecko users.
+
+```{r page_load_time_time_cont_cdf, warning=FALSE}
+per_user %>%
+  filter(metric == "page_load_ms") %>%
+  mutate(branch=factor(branch, c("enabled", "disabled"), c("WebRender", "Gecko"))) %>%
+  ggplot(aes(mean, color=branch)) +
+    geom_density(n=2048) +
+    scale_x_continuous(limits=c(0, 40000)) +
+    coord_cartesian(xlim=c(0, 10000)) +
+    scale_color_discrete("Branch") +
+    labs(x="Per-user average page load time (ms)", title="Distribution of page load time")
+```
+
+#### Tab switch time
+
+The median per-user average tab switch was slightly faster with WebRender.
+The fastest tab switches took longer with WebRender enabled, but the slowest tab switches took less time.
+
+```{r tab_switch_time_cont_cdf, warning=FALSE}
+per_user %>%
+  filter(metric == "tab_switch_composite", !is.na(mean)) %>%
+  mutate(branch=factor(branch, c("enabled", "disabled"), c("WebRender", "Gecko"))) %>%
+  ggplot(aes(mean, color=branch)) +
+    geom_density(n=8192) +
+    scale_x_continuous(limits=c(0, 1000)) +
+    coord_cartesian(xlim=c(0, 250)) +
+    scale_color_discrete("Branch") +
+    labs(x="Per-user average tab switch (ms)", title="Distribution of page load time")
+```
+
+### Thresholded absolute endpoints (composite time)
+
+The criterion for `COMPOSITE_TIME` was that the median per-user slow fraction should be < 0.5%.
+
+```{r composite_time_cdf}
+slow_stats %>%
+  filter(metric == "composite_time") %>%
+  mutate(branch=factor(branch, c("enabled", "disabled"), c("WebRender", "Gecko"))) %>%
+  ggplot(aes(fraction_exceeding, color=branch)) +
+    stat_ecdf() +
+    scale_x_continuous(labels=scales::percent) +
+    coord_cartesian(xlim=c(0, 0.1)) +
+    geom_vline(xintercept=0.005) +
+    scale_color_discrete("Branch") +
+    annotate("text", x=0.006, y=0.5, label="0.5% slow events", hjust=0) +
+    labs(x="Percent of composites that are slow", y="Fraction of users ≤ x", title="Distribution of per-user slow composite fraction")
+```
+
+The median fraction of slow composites is much higher in the WebRender branch compared to the Gecko branch,
+but lower than the 0.5% threshold:
+
+```{r composite_time_bootstrap}
+summarize_composite_time = function(df) {
+  mystat = function(data, indices) {
+    sample = data[indices,]
+    c(
+      WebRender=median(sample[sample$branch == "enabled",]$fraction_exceeding, na.rm=TRUE),
+      Gecko=median(sample[sample$branch == "disabled",]$fraction_exceeding, na.rm=TRUE)
+    )
+  }
+
+  df %>%
+    boot(mystat, N_BOOT, strata=factor(df$branch), parallel="multicore", ncpus=4) %>%
+    tidy(conf.int=TRUE, conf.method="basic")
+}
+
+composite_time_summary = slow_stats %>%
+  filter(metric == "composite_time") %>%
+  summarize_composite_time
+
+composite_time_summary %>%
+  mutate(statistic=statistic*100, conf.low=conf.low*100, conf.high=conf.high*100) %>%
+  select(
+    Branch=term,
+    `Median per-user slow composites (percent)`=statistic,
+    `95% CI (low)`=conf.low,
+    `95% CI (high)`=conf.high
+  ) %>%
+  knitr::kable(format.args=list(digits=3, nsmall=2))
+```
+
+### Thresholded comparative endpoints
+
+```{r summarize_slow}
+slow_summary = slow_stats %>%
+  filter(!is.na(fraction_exceeding), metric != "composite_time") %>%
+  group_by(metric, threshold) %>%
+  do(summarize_perf(., "fraction_exceeding"))
+
+slow_summary %>%
+  ungroup %>%
+  mutate(Metric=sprintf("%s (> %d)", metric, threshold)) %>%
+  select(
+    Metric,
+    `Median per-user fraction, as WR % of Gecko`=statistic,
+    `95% CI (low)`=conf.low,
+    `95% CI (high)`=conf.high
+  ) %>%
+  knitr::kable(format.args=list(digits=3, nsmall=2))
+```
+
+The mean per-user fraction of slow `content_frame_time_vsync` events was similar in the WebRender branch.
+
+The mean per-user fraction of slow `content_full_paint_time` events was about halved in the WebRender branch.
+
+#### Content frame time
+
+The median WebRender and Gecko user experienced very similar fractions of slow CONTENT_FRAME_TIME_VSYNCs (> 200% vsync).
+
+The fraction of slow frames was somewhat lower for the fastest half and higher for the slowest half of WebRender users compared to Gecko.
+
+```{r content_frame_paint_time_cdf}
+slow_stats %>%
+  filter(metric == "content_frame_time_vsync") %>%
+  mutate(branch=factor(branch, c("enabled", "disabled"), c("WebRender", "Gecko"))) %>%
+  ggplot(aes(fraction_exceeding, color=branch)) +
+    stat_ecdf() +
+    scale_x_continuous(labels=scales::percent) +
+    coord_cartesian(xlim=c(0, 0.3)) +
+    scale_color_discrete("Branch") +
+    labs(x="Percent of frames that are slow", y="Fraction of users ≤ x", title="Distribution of per-user slow frame fraction")
+```
+
+#### Content paint time
+
+The median WebRender user experienced considerably fewer slow paints (> 16 ms) than the median Gecko user.
+
+The worst-performing 20% of users in the WebRender and Gecko branches had similar slow paint fractions.
+
+```{r content_full_paint_time_cdf}
+slow_stats %>%
+  filter(metric == "content_full_paint_time") %>%
+  mutate(branch=factor(branch, c("enabled", "disabled"), c("WebRender", "Gecko"))) %>%
+  ggplot(aes(fraction_exceeding, color=branch)) +
+    stat_ecdf() +
+    scale_x_continuous(labels=scales::percent) +
+    coord_cartesian(xlim=c(0, 0.2)) +
+    scale_color_discrete("Branch") +
+    labs(x="Percent of paints that are slow", y="Fraction of users ≤ x", title="Distribution of per-user slow paint fraction")
+```
+
+### Checkerboarding
+
+Checkerboarding refers to artefacts caused during scrolling
+when paints during successive frames of the scroll event are incomplete.
+The `CHECKERBOARD_SEVERITY` probe
+[measures the area of the underpainted region times the duration of the event][cbdef]
+in arbitrary units (au).
+
+Based on the [observed distribution][cbdist] of the metric,
+I took 500 au as an empirical threshold for "severe" checkerboarding events.
+Many users will eventually encounter a severe event,
+but they are infrequent enough that estimating a per-user frequency with precision is difficult.
+
+Instead, I present the rate per 1,000 usage hours over the population:
+
+```{r checkerboard_events}
+crashes %>%
+  filter(crash == "severe_checkerboard_events") %>%
+  mutate(branch=factor(branch, c("disabled", "enabled"), c("Gecko", "WebRender"))) %>%
+  ggplot(aes(branch, y/usage_hours*1000, ymin=ymin/usage_hours*1000, ymax=ymax/usage_hours*1000)) +
+    geom_col(width=0.3) +
+    geom_errorbar(width=0.05) +
+    labs(title="Severe checkerboarding: events per 1000 usage hours", y="Events / 1000 hr", x="Branch") +
+    geom_text(aes(label=format(y/usage_hours*1000, digits=3)), nudge_y=15) +
+    ylim(0, NA)
+```
+
+This shows a 3% excess of severe checkerboarding events in the WebRender branch. Error bars are 95% CIs for Poisson events.
+
+[cbdef]: https://bugzilla.mozilla.org/show_bug.cgi?id=1238040#c8
+[cbdist]: https://mzl.la/2XfDfK1
+
+## Stability
+
+Sessions were filtered for stability in the same manner as for performance.
+
+Despite a clear increase in GPU process crashes,
+the overall crash rate was only slightly higher because
+the number of main and content process crashes fell.
+
+### Overall crash reports
+
+```{r total_crashes}
+crashes %>%
+  filter(crash == "total_crashes") %>%
+  mutate(branch=factor(branch, c("disabled", "enabled"), c("Gecko", "WebRender"))) %>%
+  ggplot(aes(branch, y/usage_hours*1000, ymin=ymin/usage_hours*1000, ymax=ymax/usage_hours*1000)) +
+    geom_col(width=0.3) +
+    geom_errorbar(width=0.05) +
+    labs(title="All crashes: crashes per 1000 usage hours", y="Crashes / 1000 hr", x="Branch") +
+    geom_text(aes(label=format(y/usage_hours*1000, digits=3)), nudge_y=0.2) +
+    ylim(0, 3)
+```
+
+```{r fraction_any_crashes}
+ggplot(any_crashes, aes(branch, fraction_affected, ymin=Lower, ymax=Upper)) +
+  geom_col(width=0.3) +
+  scale_y_continuous(labels=scales::percent) +
+  labs(title="All crashes: percent of users experiencing at least one crash", y="Percent of users", x="Branch") +
+  geom_text(aes(label=sprintf("%.1f%%", fraction_affected*100)), nudge_y=0.0075) +
+  geom_errorbar(width=0.1)
+```
+
+### Per-process crash reports
+
+```{r process_crashes}
+crashes_per_process %>%
+  filter(process != "rdd") %>%
+  select(branch, process, total_crashes, usage_hours) %>%
+  group_by_all() %>%
+  do(poisson_ci(.$total_crashes)) %>%
+  ungroup %>%
+  mutate(branch=factor(branch, c("disabled", "enabled"), c("Gecko", "WebRender"))) %>%
+  ggplot(aes(branch, y/usage_hours*1000, ymin=ymin/usage_hours*1000, ymax=ymax/usage_hours*1000)) +
+    facet_wrap(~process, nrow=1) +
+    geom_col(width=0.3) +
+    geom_errorbar(width=0.05) +
+    labs(title="By process: crashes per 1000 usage hours", y="Crashes / 1000 hr", x="Branch") +
+    geom_text(aes(label=format(y/usage_hours*1000, digits=3)), nudge_y=0.15) +
+    ylim(0, 3)
+```
+
+```{r fraction_process_crashes}
+users_with_crashes_by_process %>%
+  filter(process != "rdd") %>%
+  ggplot(aes(branch, fraction_affected, ymin=Lower, ymax=Upper)) +
+    facet_wrap(~process, nrow=1) +
+    geom_col(width=0.3) +
+    scale_y_continuous(labels=scales::percent) +
+    labs(title="By process: percent of users experiencing at least one crash", y="Percent of users", x="Branch") +
+    geom_text(aes(label=sprintf("%.1f%%", fraction_affected*100)), nudge_y=0.0035) +
+    geom_errorbar(width=0.1)
+```
+
+### OOM crash reports
+
+```{r oom_crashes}
+crashes %>%
+  filter(crash == "oom_crashes") %>%
+  mutate(branch=factor(branch, c("disabled", "enabled"), c("Gecko", "WebRender"))) %>%
+  ggplot(aes(branch, y/usage_hours*1000, ymin=ymin/usage_hours*1000, ymax=ymax/usage_hours*1000)) +
+    geom_col(width=0.3) +
+    geom_errorbar(width=0.05) +
+    labs(title="OOM crashes: crashes per 1000 usage hours", y="Crashes / 1000 hr", x="Branch") +
+    geom_text(aes(label=format(y/usage_hours*1000, digits=3)), nudge_y=0.15) +
+    ylim(0, 3)
+```
+
+OOM crashes are a subset of `main` process crashes. They were less common in the WebRender branch.
+
+### WebGL canvas construction
+
+Failure to create a WebGL canvas was rare in either branch.
+This is reflected in the per-user average fraction of canvas creation successes:
+
+```{r webgl_success}
+per_user %>%
+  filter(metric == "webgl_success") %>%
+  filter(!is.na(mean)) %>%
+  mutate(branch=factor(branch, c("disabled", "enabled"), c("Gecko", "WebRender"))) %>%
+  group_by(branch) %>%
+  summarize(average_success_fraction=sum(mean)/n()) %>%
+  knitr::kable()
+```
+
+### Device resets
+
+```{r reset_crashes}
+crashes %>%
+  filter(crash == "device_reset_reason_total") %>%
+  mutate(branch=factor(branch, c("disabled", "enabled"), c("Gecko", "WebRender"))) %>%
+  ggplot(aes(branch, y/usage_hours*1000, ymin=ymin/usage_hours*1000, ymax=ymax/usage_hours*1000)) +
+    geom_col(width=0.3) +
+    geom_errorbar(width=0.05) +
+    labs(title="Device resets: resets per 1000 usage hours", y="Resets / 1000 hr", x="Branch") +
+    geom_text(aes(label=format(y/usage_hours*1000, digits=3)), nudge_y=0.35)
+```
+
+## Engagement
+
+Retention and engagement metrics were observed for all enrolled users from the moment of enrollment;
+filtering was not performed to ensure that the compositor matched the enrolled branch,
+and enrollment sessions were not discarded.
+
+### URI count
+
+There was a small decline in the number of URIs visited by the least active users.
+
+```{r total_uri_cdf}
+engagement %>%
+  transform_branch %>%
+  ggplot(aes(total_uris+1, color=branch)) +
+    stat_ecdf() +
+    coord_cartesian(xlim=c(1, 1e5)) +
+    scale_x_log10() +
+    scale_color_discrete("Branch") +
+    labs(title="Distribution of the total count of URIs visited by users in each branch")
+```
+
+Computing bootstrapped 95% confidence intervals for the difference between the distributions along the curve,
+the 10th and 25th percentiles of the userbase in each branch reflected less usage in the WebRender branch:
+
+```{r total_uri_quantiles}
+quantile_delta = function(data, i, var, q) {
+  sample = data[i,]
+  wr = quantile(sample[sample$branch == "enabled",][[var]], q)
+  gecko = quantile(sample[sample$branch == "disabled",][[var]], q)
+  ((wr - gecko) / gecko) * 100
+}
+
+engagement_boot = function(x) {
+  boot(x, quantile_delta, N_BOOT, strata=factor(x$branch), parallel="multicore", ncpus=4, var="value", q=c(0.10, 0.25, 0.5, 0.75, 0.95)) %>%
+    tidy(conf.int=TRUE, conf.method="basic")
+}
+
+engagement_quantiles = engagement %>%
+  gather("metric", "value", -branch) %>%
+  group_by(metric) %>%
+  do(engagement_boot(.)) %>%
+  ungroup
+
+engagement_quantiles %>%
+  filter(metric == "total_uris") %>%
+  ggplot(aes(term, statistic, ymin=conf.low, ymax=conf.high)) +
+    geom_point(size=3) +
+    geom_hline(yintercept=0, alpha=0.6) +
+    geom_errorbar(width=0.2) +
+    labs(x="Percentile", y="(WebRender - Gecko)/Gecko (%)", title="total_uri_count: percent difference between WR and Gecko")
+```
+
+A 10% decrease at the 10th percentile corresponds to about 1 fewer URI.
+A 2.5% decrease at the 25th percentile corresponds to a shift from 300 to 293 URIs.
+
+### Active time
+
+The distribution of per-user active time also showed a slight decrease for less active users:
+
+```{r active_time_cdf}
+engagement %>%
+  transform_branch %>%
+  ggplot(aes(active_time_hr+1, color=branch)) +
+    stat_ecdf() +
+    scale_x_log10() +
+    scale_color_discrete("Branch") +
+    coord_cartesian(xlim=c(1, 300)) +
+    labs(title="Distribution of the total per-user active time in each branch")
+```
+
+Active time may have decreased slightly for WebRender branch users among less avid users.
+
+```{r active_time_quantiles}
+engagement_quantiles %>%
+  filter(metric == "active_time_hr") %>%
+  ggplot(aes(term, statistic, ymin=conf.low, ymax=conf.high)) +
+    geom_point(size=3) +
+    geom_hline(yintercept=0, alpha=0.6) +
+    geom_errorbar(width=0.2) +
+    labs(x="Percentile", y="(WebRender - Gecko)/Gecko (%)", title="active_ticks: percent difference between WR and Gecko")
+```
+
+### Total time
+
+Distribution of total browser-open time also may have shown a small decrease for less avid users.
+
+```{r session_time_cdf}
+engagement %>%
+  transform_branch %>%
+  ggplot(aes(session_length_hr+1, color=branch)) +
+    stat_ecdf() +
+    scale_x_log10() +
+    scale_color_discrete("Branch") +
+    coord_cartesian(xlim=c(1, 1000)) +
+    labs(title="Distribution of the total per-user browser-open time in each branch") +
+    geom_vline(xintercept=28*24) +
+    annotate(geom="text", x=28*24+20, y=0.8, label="Study\nduration", hjust=0)
+```
+
+Similar to active time, less-avid users may have used the browser slightly less
+in the WebRender branch.
+
+```{r session_time_quantiles}
+engagement_quantiles %>%
+  filter(metric == "session_length_hr") %>%
+  ggplot(aes(term, statistic, ymin=conf.low, ymax=conf.high)) +
+    geom_point(size=3) +
+    geom_hline(yintercept=0, alpha=0.6) +
+    geom_errorbar(width=0.2) +
+    labs(x="Percentile", y="(WebRender - Gecko)/Gecko (%)", title="Total time: percent difference between WR and Gecko")
+```
+
+## Retention
+
+Retention was similar between the study branches.
+
+```{r retention}
+
+retention_conf = retention %>%
+  transform_branch %>%
+  group_by_all() %>%
+  do(Hmisc::binconf(.$n, .$week_0, return.df=TRUE)) %>%
+  ungroup
+
+ggplot(retention_conf, aes(weeks_since_enrollment, PointEst, ymin=Lower, ymax=Upper, color=branch)) +
+  geom_line(alpha=0.3) +
+  geom_point(position=position_dodge(width=0.2), size=2) +
+  geom_errorbar(position=position_dodge(width=0.2), width=0.15) +
+  scale_x_continuous(breaks=c(0, 1, 2)) +
+  labs(x="Weeks since enrollment", y="% of users retained", title="Retention")
+```
+
+```{r}
+week3_retention_test = prop.test(
+  matrix(
+    c(
+      with(filter(retention_conf, weeks_since_enrollment == 3, branch == "Gecko"), {c(n, week_0-n)}),
+      with(filter(retention_conf, weeks_since_enrollment == 3, branch == "WebRender"), {c(n, week_0-n)})
+    ),
+    byrow=TRUE,
+    ncol=2,
+    dimnames=list(c("Gecko", "WebRender"), c("retained", "lost"))
+  )
+)
+
+w3r_ci_text = sprintf("at least %.2f%% and at most %.2f%%", week3_retention_test$conf.int[[1]]*100, week3_retention_test$conf.int[[2]]*100)
+```
+
+Retention may have been slightly lower for the WebRender branch at 3 weeks.
+The 95% confidence interval for the true difference between the branches was `r w3r_ci_text`.
+
+## Enrollment
+
+Daily enrollment and unenrollment were symmetric between branches.
+
+Enrollment was exaggerated because the recipe was not written to filter by `wrQualified` status.
+
+```{r cumulative_enrollment}
+enroll_daily %>%
+  transform_branch %>%
+  mutate(enrollment_date=as.Date(enrollment_date)) %>%
+  arrange(branch, enrollment_date) %>%
+  group_by(branch) %>%
+  mutate(cumulative=cumsum(n)) %>%
+  ungroup %>%
+  ggplot(aes(enrollment_date, cumulative, color=branch)) +
+    geom_line() +
+    expand_limits(y=0) +
+    labs(x="Enrollment date", y="Users enrolled", title="Cumulative enrollment, by branch")
+```
+
+Unenrollments were minimal and distributed equally between branches.
+
+```{r cumulative_unenrollment}
+unenroll_daily %>%
+  filter(!is.na(branch)) %>%
+  transform_branch %>%
+  mutate(first_unenrollment_date=as.Date(first_unenrollment_date)) %>%
+  arrange(branch, first_unenrollment_date) %>%
+  group_by(branch) %>%
+  mutate(cumulative=cumsum(n)) %>%
+  ungroup %>%
+  ggplot(aes(first_unenrollment_date, cumulative, color=branch)) +
+    geom_line() +
+    labs(x="Date", y="Number of users", title="Cumulative premature unenrollment, by branch")
+```
+
+# Conclusions
+
+* The WebRender experiment met all but one of the performance goals.
+  Although the median per-user mean `CONTENT_FULL_PAINT_TIME` increased,
+  the number of measurements greater than 16 ms (=1/60 Hz) actually decreased.
+  Because most users have a 60 Hz refresh rate, this may not be a generally user-visible regression.
+* The WebRender experiment had generally salutary effects on stability,
+  except for an increase in GPU process crashes.
+  Main process and content process crashes, which are more visible to the user, decreased.
+* The WebRender experiment did not have clear impacts on user engagement or retention,
+  although there may have been a small decrease in usage, as measured by active hours,
+  URIs visited, and total session time among the least avid users in the experiment.
+
+# Methods
+
+The [`pref-flip-webrender-perf67-1526094` experiment][experimenter] enrolled users
+in Firefox 66 who met the
+`normandy.telemetry.main.environment.system.gfx.features.wrQualified.status == 'available'` criterion.
+At the time of the study, this enrolled users running Windows 10
+on systems without a battery
+and having one of a list of allowlisted graphics cards.
+
+ETL was computed by two notebooks:
+
+* [Engagement and retention](https://dbc-caf9527b-e073.cloud.databricks.com/#notebook/137573/command/137583)
+* [Performance](https://dbc-caf9527b-e073.cloud.databricks.com/#notebook/124963)
