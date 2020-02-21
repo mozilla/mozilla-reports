@@ -1,0 +1,6 @@
+{
+  "title": "Webrender in Fenix performance experiment",
+  "publish_date": "2020-02-21",
+  "author": "Tim D. Smith",
+  "abstract": "The performance effects of enabling WebRender in the 3.2.0/3.2.1 release of Firefox Preview for Android on Pixel 2/3 devices were measured with an A/B experiment. We observed some concrete performance improvements."
+}

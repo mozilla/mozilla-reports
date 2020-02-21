@@ -1,0 +1,272 @@
+---
+title: "Webrender Fenix perf experiment"
+author: "tdsmith"
+date: '2020-02-19'
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    self_contained: false
+---
+
+# Abstract
+
+The performance effects of enabling WebRender in the 3.2.0/3.2.1 release of Firefox Preview for Android ("Fenix")
+on Pixel 2/3 devices were measured with an A/B experiment.
+
+As expected, composite time increased. Page load time, checkerboarding time, and paint times all decreased.
+Content frame time increased.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message=FALSE, warning=FALSE)
+
+library(boot)
+library(broom)
+library(dplyr)
+library(ggplot2)
+library(readr)
+
+raw = read_csv(
+  "20200219_fenix_webrender_summary.csv.gz",
+  col_types=cols(
+    .default = col_double(),
+    fatal_native_code_crash = col_integer(),
+    nonfatal_native_code_crash = col_integer(),
+    enrollment_timestamp = col_datetime("%Y-%m-%d %H:%M:%OS %Z"),
+    device_model = col_character(),
+    branch = col_character(),
+    min_branch = col_character(),
+    min_device_model=col_character(),
+    consistent_compositor = col_logical(),
+    max_app_display_version = col_character()
+  )
+)
+
+compute_means = function(df) {
+  df %>%
+    mutate(
+      branch=factor(branch, c("disable_webrender", "enable_webrender"), c("Disabled", "Enabled")),
+      page_load_time_mean_s=page_load_time_sum/page_load_count / 1e9,
+      checkerboard_potential_duration_mean_ms=checkerboard_potential_duration_sum/checkerboard_potential_duration_count / 1e6,
+      checkerboard_potential_duration_sum_s = coalesce(checkerboard_potential_duration_sum, 0) / 1e9,
+      composite_time_mean_ms=gfx_composite_time_sum/gfx_composite_count / 1e6,
+      content_full_paint_time_mean_ms=gfx_content_full_paint_time_sum/gfx_content_full_paint_count / 1e6,
+      content_paint_time_mean_ms=gfx_content_paint_time_sum/gfx_content_paint_count / 1e6,
+      gfx_content_frame_time_from_vsync_mean=gfx_content_frame_time_from_vsync_sum/gfx_content_frame_count,
+      gfx_content_frame_time_from_paint_mean=gfx_content_frame_time_from_paint_sum/gfx_content_frame_time_from_paint_count
+    )
+}
+
+summary = raw %>%
+  group_by(client_index) %>%
+  summarize_at(vars(contains("sum"), contains("count"), starts_with("n_")), sum) %>%
+  left_join(raw %>% group_by(client_index) %>% summarize_at(vars(branch, device_model, max_app_display_version), first), on="client_index") %>%
+  mutate(only_consistent="All pings") %>%
+  left_join(raw %>% group_by(client_index) %>% summarize(always_consistent=!min(consistent_compositor), never_consistent=!max(consistent_compositor)), on="client_index") %>%
+  compute_means
+
+only_consistent = raw %>%
+  filter(consistent_compositor) %>%
+  mutate(only_consistent="Consistent compositor_last_seen") %>%
+  compute_means
+
+inconsistent = raw %>%
+  filter(!consistent_compositor) %>%
+  mutate(only_consistent="Inconsistent/null compositor_last_seen") %>%
+  compute_means
+
+grouped_by_consistency = bind_rows(
+  summary,
+  only_consistent,
+  inconsistent
+)
+
+bootstraps = read_csv("bootstraps.csv")
+
+```
+
+# Introduction
+
+ The WebRender perf experiment was deployed to 100% of both "normal" and "XL" variants of the Pixel 2, Pixel 3, and Pixel 3a devices.
+ 
+The experiment was supposed to start January 27, 2020;
+it actually went live January 31, after fixing a Mako filter expression error.
+
+The experiment was affected by [a Glean bug](https://bugzilla.mozilla.org/show_bug.cgi?id=1612940) that caused pings from enrolled users to fail schema validation.
+The schema was adjusted February 4 to accept these pings. Pings between January 31 and February 4 were dropped.
+
+This report includes pings received between February 4 and February 18, 2020.
+
+We received pings from about 5,000 clients in each branch.
+
+The Pixel 3 variants were more common than the Pixel 2 variants, but all models were represented:
+
+```{r}
+summary %>%
+  count(branch, device_model) %>%
+  filter(n > 1) %>%
+  ggplot(aes(device_model, n, fill=branch, group=branch)) +
+    geom_col(position=position_dodge(w=0.75), width=0.7) +
+    labs(title="Clients in experiment by device and branch")
+```
+
+About 3,000 clients in each branch sent us pings that contained any compositing activity.
+About half of all received [`metrics` pings](https://mozilla.github.io/glean/book/user/pings/metrics.html)
+did not contain any compositing activity,
+or had a compositor that was inconsistent with the experiment branch the client was supposed to be enrolled in.
+The former condition predominated.
+
+```{r}
+raw %>%
+  group_by(branch, consistent_compositor) %>%
+  summarize(n_pings=sum(n_pings)) %>%
+  ggplot(aes(branch, n_pings, fill=consistent_compositor, group=consistent_compositor)) +
+    scale_fill_discrete("Consistent\ncompositor") +
+    geom_col(position=position_dodge(w=0.75), width=0.7) +
+    labs(x="Branch", y="# pings", title="Number of pings by branch, by consistent compositor")
+```
+
+Two known issues are expected to contribute to the large volume of metrics pings without composites:
+
+* [Bug 1597980](https://bugzilla.mozilla.org/show_bug.cgi?id=1597980) resulted in `metrics` pings being sent
+  in cases where there was no client activity. The fix had landed in Fenix Nightly, but not Release, before this experiment launched,
+  and was not deployed to our clients.
+
+* [Bug 1612283](https://bugzilla.mozilla.org/show_bug.cgi?id=1612283) resulted in Glean failing to accumulate samples
+  from GeckoView for short user sessions (less than 5 seconds). It's not clear how many clients or pings were affected.
+  The fix landed in Glean's master branch during the study and was not deployed to clients.
+
+This experiment was overlaid on top of [an experiment](https://github.com/mozilla-mobile/fenix/issues/7795)
+to assess the impact of [changing compiler optimizer flags](https://bugzilla.mozilla.org/show_bug.cgi?id=1591725).
+The separate legs were delivered through the Play Store as different Fenix versions -- either 3.2.0 or 3.2.1.
+
+The randomization mechanisms sorting users into branches for each study were independent and our users were equally balanced
+between the optimizer-flag experiment branches, so I assert that the optimizer-flag study is ignorable and do not consider it further.
+
+```{r}
+summary %>%
+  count(branch, max_app_display_version) %>%
+  filter(n > 1) %>%
+  ggplot(aes(max_app_display_version, n, fill=branch, group=branch)) +
+    geom_col(position=position_dodge(w=0.75), width=0.7)
+```
+
+The plot below summarizes the difference in the median client's average performance metrics with Webrender enabled, with bootstrapped 95% confidence intervals.
+The "consistent `compositor_last_seen`" series is probably the correct value to reference.
+Because we don't completely understand why compositor was sometimes missing or inconsistent, the "all pings" series is presented for comparison,
+in case pings were missing for reasons that could bias the results, but
+(except for total checkerboarding time)
+the results only include pings where there was any activity for that metric.
+In cases where the "consistent compositor" and "all pings" results show different trends, we should interpret the results with caution.
+
+The "all pings" result for the total checkerboarding time was zero because the median client in the "all pings" case experienced no checkerboarding
+(and perhaps had no web content activity at all).
+
+```{r, fig.height=11, fig.width=4}
+bootstraps %>%
+  filter(term == "difference", only_consistent != "Inconsistent/null compositor_last_seen") %>%
+  mutate(metric=factor(
+    metric,
+    c("page_load_time_mean_s.safe_median", "checkerboard_potential_duration_sum_s.median", "composite_time_mean_ms.safe_median", "content_full_paint_time_mean_ms.safe_median", "content_paint_time_mean_ms.safe_median", "gfx_content_frame_time_from_vsync_mean.safe_median", "gfx_content_frame_time_from_paint_mean.safe_median"),
+    c("Mean page load time (s)", "Total checkerboarding duration (s)", "Mean composite time (ms)", "Mean content full paint time (ms)", "Mean content paint time (ms)", "Mean content frame time (% vsync)", "Mean content frame time (ms)")
+    )) %>%
+ggplot(aes(metric, statistic, ymin=conf.low, ymax=conf.high, color=only_consistent)) +
+    geom_pointrange(position=position_dodge(width=1)) +
+    geom_blank(aes(ymin=-conf.high, ymax=-conf.low)) +  # center everything at zero
+    coord_flip() +
+    geom_hline(yintercept=0) +
+    facet_wrap(~metric, scales="free", ncol=1) +
+    theme(axis.text.y=element_blank(), axis.ticks.y=element_blank(), panel.spacing.y=unit(2, "lines"), legend.position="top", legend.direction="vertical") +
+    labs(x="", title="Absolute difference for median\nuser") +
+    scale_color_discrete("Ping subset")
+```
+
+# Page load time
+
+```{r}
+ggplot(summary, aes(page_load_time_mean_s, color=branch)) +
+    geom_density() +
+    scale_x_log10() +
+    coord_cartesian(xlim=c(0.1, 30)) +
+    scale_color_discrete("WebRender") +
+    labs(title="User mean page load time", x="Page load time (s)", y="Density")
+```
+
+# Total checkerboarding time
+
+```{r}
+ggplot(only_consistent, aes(coalesce(checkerboard_potential_duration_sum/1e9, 0), color=branch)) +
+    geom_density() +
+    scale_x_log10(oob=scales::squish_infinite) +
+    scale_color_discrete("WebRender") +
+    labs(title="Total time potentially spent checkerboarding per user\n(consistent pings)", x="Checkerboarding time (s)", y="Density")
+```
+
+```{r}
+ggplot(summary, aes(coalesce(checkerboard_potential_duration_sum/1e9, 0), color=branch)) +
+    geom_density() +
+    scale_x_log10(oob=scales::squish_infinite) +
+    scale_color_discrete("WebRender") +
+    labs(title="Total time potentially spent checkerboarding per user\n(all pings)", x="Checkerboarding time (s)", y="Density")
+```
+
+# Composite time
+
+```{r}
+ggplot(summary, aes(composite_time_mean_ms, color=branch)) +
+    geom_density() +
+    scale_x_log10(oob=scales::squish_infinite) +
+    coord_cartesian(xlim=c(.3, 100)) +
+    scale_color_discrete("WebRender") +
+    labs(title="Mean composite time per user", x="Composite time (ms)", y="Density")
+```
+
+# Content full paint time
+
+```{r}
+ggplot(summary, aes(content_full_paint_time_mean_ms, color=branch)) +
+    geom_density() +
+    scale_x_log10(oob=scales::squish_infinite) +
+    coord_cartesian(xlim=c(1, 300)) +
+    scale_color_discrete("WebRender") +
+    labs(title="Mean content full paint time per user", x="Content full paint time (ms)", y="Density")
+```
+
+# Content paint time
+
+```{r}
+ggplot(summary, aes(content_paint_time_mean_ms, color=branch)) +
+    geom_density() +
+    scale_x_log10(oob=scales::squish_infinite) +
+    coord_cartesian(xlim=c(.3, 100)) +
+    scale_color_discrete("WebRender") +
+    labs(title="Mean content paint time per user", x="Content paint time (ms)", y="Density")
+```
+
+# Content frame time (vsync)
+
+```{r}
+ggplot(summary, aes(gfx_content_frame_time_from_vsync_mean, color=branch)) +
+    geom_density() +
+    scale_x_log10(oob=scales::squish_infinite) +
+    scale_color_discrete("WebRender") +
+    labs(title="Mean content frame time per user\n(all pings)", x="Content frame time (% vsync)", y="Density")
+```
+
+```{r}
+ggplot(only_consistent, aes(gfx_content_frame_time_from_vsync_mean, color=branch)) +
+    geom_density() +
+    scale_x_log10(oob=scales::squish_infinite) +
+    scale_color_discrete("WebRender") +
+    labs(title="Mean content frame time per user\n(consistent pings)", x="Content frame time (% vsync)", y="Density")
+```
+
+# Content frame time (paint)
+
+```{r}
+ggplot(summary, aes(gfx_content_frame_time_from_paint_mean, color=branch)) +
+    geom_density() +
+    scale_x_log10(oob=scales::squish_infinite) +
+    scale_color_discrete("WebRender") +
+    labs(title="Mean content frame time per user", x="Content frame time (ms)", y="Density")
+```
