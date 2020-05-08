@@ -12,10 +12,18 @@ output:
 # Abstract
 
 The performance effects of enabling WebRender in the 3.2.0/3.2.1 release of Firefox Preview for Android ("Fenix")
-on Pixel 2/3 devices were measured with an A/B experiment.
+on Pixel 2/3 devices were measured with an A/B experiment ([Experimenter link]).
 
-As expected, composite time increased. Page load time, checkerboarding time, and paint times all decreased.
-Content frame time increased.
+Metrics that decreased were page load time (95% CI: 0.91-0.98x),
+potential checkerboarding time (0.31-0.43x),
+and paint times (content full paint time: 0.55-0.58x)
+
+As expected, composite time increased 2.54-2.65x, because WebRender does more work during compositing.
+Content frame time also increased (1.05-1.3x).
+
+This experiment achieved a first look at WebRender performance in the wild on Fenix.
+
+[Experimenter link]: https://experimenter.services.mozilla.com/experiments/control-webrender-rollout-for-fenix/
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, message=FALSE, warning=FALSE)
@@ -181,15 +189,21 @@ ggplot(aes(metric, statistic, ymin=conf.low, ymax=conf.high, color=only_consiste
     scale_color_discrete("Ping subset")
 ```
 
+The plots below show the distributions of user means for each metric.
+All pings were considered unless indicated.
+"Consistent pings" means that only pings where the compositor was consistent with the assigned experiment branch are shown.
+Medians of the distributions are indicated by vertical lines.
+
 # Page load time
 
 ```{r}
-ggplot(summary, aes(page_load_time_mean_s, color=branch)) +
+ggplot(only_consistent, aes(page_load_time_mean_s, color=branch)) +
     geom_density() +
     scale_x_log10() +
     coord_cartesian(xlim=c(0.1, 30)) +
     scale_color_discrete("WebRender") +
-    labs(title="User mean page load time", x="Page load time (s)", y="Density")
+    labs(title="User mean page load time", x="Page load time (s)", y="Density") +
+    geom_vline(data=only_consistent %>% group_by(branch) %>% summarize(v=median(page_load_time_mean_s, na.rm=TRUE)), mapping=aes(xintercept=v, color=branch))
 ```
 
 # Total checkerboarding time
@@ -199,7 +213,8 @@ ggplot(only_consistent, aes(coalesce(checkerboard_potential_duration_sum/1e9, 0)
     geom_density() +
     scale_x_log10(oob=scales::squish_infinite) +
     scale_color_discrete("WebRender") +
-    labs(title="Total time potentially spent checkerboarding per user\n(consistent pings)", x="Checkerboarding time (s)", y="Density")
+    labs(title="Total time potentially spent checkerboarding per user\n(consistent pings)", x="Checkerboarding time (s)", y="Density") +
+    geom_vline(data=only_consistent %>% group_by(branch) %>% summarize(v=median(checkerboard_potential_duration_sum/1e9, na.rm=TRUE)), mapping=aes(xintercept=v, color=branch))
 ```
 
 ```{r}
@@ -207,7 +222,8 @@ ggplot(summary, aes(coalesce(checkerboard_potential_duration_sum/1e9, 0), color=
     geom_density() +
     scale_x_log10(oob=scales::squish_infinite) +
     scale_color_discrete("WebRender") +
-    labs(title="Total time potentially spent checkerboarding per user\n(all pings)", x="Checkerboarding time (s)", y="Density")
+    labs(title="Total time potentially spent checkerboarding per user\n(all pings)", x="Checkerboarding time (s)", y="Density")  +
+    geom_vline(data=summary %>% group_by(branch) %>% summarize(v=median(checkerboard_potential_duration_sum/1e9, na.rm=TRUE)), mapping=aes(xintercept=v, color=branch))
 ```
 
 # Composite time
@@ -218,7 +234,8 @@ ggplot(summary, aes(composite_time_mean_ms, color=branch)) +
     scale_x_log10(oob=scales::squish_infinite) +
     coord_cartesian(xlim=c(.3, 100)) +
     scale_color_discrete("WebRender") +
-    labs(title="Mean composite time per user", x="Composite time (ms)", y="Density")
+    labs(title="Mean composite time per user", x="Composite time (ms)", y="Density") +
+    geom_vline(data=summary%>% group_by(branch) %>% summarize(v=median(composite_time_mean_ms, na.rm=TRUE)), mapping=aes(xintercept=v, color=branch))
 ```
 
 # Content full paint time
@@ -229,7 +246,8 @@ ggplot(summary, aes(content_full_paint_time_mean_ms, color=branch)) +
     scale_x_log10(oob=scales::squish_infinite) +
     coord_cartesian(xlim=c(1, 300)) +
     scale_color_discrete("WebRender") +
-    labs(title="Mean content full paint time per user", x="Content full paint time (ms)", y="Density")
+    labs(title="Mean content full paint time per user", x="Content full paint time (ms)", y="Density") +
+    geom_vline(data=summary%>% group_by(branch) %>% summarize(v=median(content_full_paint_time_mean_ms, na.rm=TRUE)), mapping=aes(xintercept=v, color=branch))
 ```
 
 # Content paint time
@@ -240,7 +258,12 @@ ggplot(summary, aes(content_paint_time_mean_ms, color=branch)) +
     scale_x_log10(oob=scales::squish_infinite) +
     coord_cartesian(xlim=c(.3, 100)) +
     scale_color_discrete("WebRender") +
-    labs(title="Mean content paint time per user", x="Content paint time (ms)", y="Density")
+    labs(title="Mean content paint time per user", x="Content paint time (ms)", y="Density") +
+    geom_vline(
+      data=summary %>% group_by(branch) %>% summarize(v=median(ifelse(content_paint_time_mean_ms > 0, content_paint_time_mean_ms, NA), na.rm=TRUE)),
+      mapping=aes(xintercept=v, color=branch)
+    )
+
 ```
 
 # Content frame time (vsync)
@@ -268,5 +291,6 @@ ggplot(summary, aes(gfx_content_frame_time_from_paint_mean, color=branch)) +
     geom_density() +
     scale_x_log10(oob=scales::squish_infinite) +
     scale_color_discrete("WebRender") +
-    labs(title="Mean content frame time per user", x="Content frame time (ms)", y="Density")
+    labs(title="Mean content frame time per user", x="Content frame time (ms)", y="Density") +
+    geom_vline(data=summary %>% group_by(branch) %>% summarize(v=median(gfx_content_frame_time_from_paint_mean, na.rm=TRUE)), mapping=aes(xintercept=v, color=branch))
 ```

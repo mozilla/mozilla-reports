@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html>
 
 <head>
 
 <meta charset="utf-8" />
-<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
 
 
 <meta name="author" content="tdsmith" />
@@ -15,6 +15,7 @@
 
 <title>Webrender Fenix perf experiment</title>
 
+<script src="summary_files/header-attrs-2.1/header-attrs.js"></script>
 <script src="summary_files/jquery-1.11.3/jquery.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link href="summary_files/bootstrap-3.3.5/css/bootstrap.min.css" rel="stylesheet" />
@@ -88,7 +89,6 @@ code {
 }
 img {
   max-width:100%;
-  height: auto;
 }
 .tabbed-pane {
   padding-top: 12px;
@@ -150,6 +150,7 @@ summary {
   border: none;
   display: inline-block;
   border-radius: 4px;
+  background-color: transparent;
 }
 
 .tabset-dropdown > .nav-tabs.nav-tabs-open > li {
@@ -162,48 +163,9 @@ summary {
 }
 </style>
 
-<script>
-$(document).ready(function () {
-  window.buildTabsets("TOC");
-});
-
-$(document).ready(function () {
-  $('.tabset-dropdown > .nav-tabs > li').click(function () {
-    $(this).parent().toggleClass('nav-tabs-open')
-  });
-});
-</script>
-
 <!-- code folding -->
 
 
-
-<script>
-$(document).ready(function ()  {
-
-    // move toc-ignore selectors from section div to header
-    $('div.section.toc-ignore')
-        .removeClass('toc-ignore')
-        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
-
-    // establish options
-    var options = {
-      selectors: "h1,h2,h3",
-      theme: "bootstrap3",
-      context: '.toc-content',
-      hashGenerator: function (text) {
-        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_').toLowerCase();
-      },
-      ignoreSelector: ".toc-ignore",
-      scrollTo: 0
-    };
-    options.showAndHide = true;
-    options.smoothScroll = true;
-
-    // tocify
-    var toc = $("#TOC").tocify(options).data("toc-tocify");
-});
-</script>
 
 <style type="text/css">
 
@@ -217,6 +179,12 @@ $(document).ready(function ()  {
 }
 }
 
+@media print {
+.toc-content {
+  /* see https://github.com/w3c/csswg-drafts/issues/4434 */
+  float: right;
+}
+}
 
 .toc-content {
   padding-left: 30px;
@@ -296,8 +264,10 @@ div.tocify {
 
 <div id="abstract" class="section level1">
 <h1>Abstract</h1>
-<p>The performance effects of enabling WebRender in the 3.2.0/3.2.1 release of Firefox Preview for Android (“Fenix”) on Pixel 2/3 devices were measured with an A/B experiment.</p>
-<p>As expected, composite time increased. Page load time, checkerboarding time, and paint times all decreased. Content frame time increased.</p>
+<p>The performance effects of enabling WebRender in the 3.2.0/3.2.1 release of Firefox Preview for Android (“Fenix”) on Pixel 2/3 devices were measured with an A/B experiment (<a href="https://experimenter.services.mozilla.com/experiments/control-webrender-rollout-for-fenix/">Experimenter link</a>).</p>
+<p>Metrics that decreased were page load time (95% CI: 0.91-0.98x), potential checkerboarding time (0.31-0.43x), and paint times (content full paint time: 0.55-0.58x)</p>
+<p>As expected, composite time increased 2.54-2.65x, because WebRender does more work during compositing. Content frame time also increased (1.05-1.3x).</p>
+<p>This experiment achieved a first look at WebRender performance in the wild on Fenix.</p>
 </div>
 <div id="introduction" class="section level1">
 <h1>Introduction</h1>
@@ -321,6 +291,7 @@ div.tocify {
 <p>The plot below summarizes the difference in the median client’s average performance metrics with Webrender enabled, with bootstrapped 95% confidence intervals. The “consistent <code>compositor_last_seen</code>” series is probably the correct value to reference. Because we don’t completely understand why compositor was sometimes missing or inconsistent, the “all pings” series is presented for comparison, in case pings were missing for reasons that could bias the results, but (except for total checkerboarding time) the results only include pings where there was any activity for that metric. In cases where the “consistent compositor” and “all pings” results show different trends, we should interpret the results with caution.</p>
 <p>The “all pings” result for the total checkerboarding time was zero because the median client in the “all pings” case experienced no checkerboarding (and perhaps had no web content activity at all).</p>
 <p><img src="summary_files/figure-html/unnamed-chunk-4-1.png" width="384" /></p>
+<p>The plots below show the distributions of user means for each metric. All pings were considered unless indicated. “Consistent pings” means that only pings where the compositor was consistent with the assigned experiment branch are shown. Medians of the distributions are indicated by vertical lines.</p>
 </div>
 <div id="page-load-time" class="section level1">
 <h1>Page load time</h1>
@@ -371,6 +342,49 @@ $(document).ready(function () {
 });
 
 
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
+</script>
+
+<!-- code folding -->
+
+<script>
+$(document).ready(function ()  {
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_').toLowerCase();
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
 </script>
 
 <!-- dynamically load mathjax for compatibility with self-contained -->
