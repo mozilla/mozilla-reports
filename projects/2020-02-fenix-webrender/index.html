@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+<meta name="author" content="tdsmith" />
+
+<meta name="date" content="2020-02-19" />
+
+<title>Webrender Fenix perf experiment</title>
+
+<script src="summary_files/header-attrs-2.1/header-attrs.js"></script>
+<script src="summary_files/jquery-1.11.3/jquery.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="summary_files/bootstrap-3.3.5/css/bootstrap.min.css" rel="stylesheet" />
+<script src="summary_files/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="summary_files/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="summary_files/bootstrap-3.3.5/shim/respond.min.js"></script>
+<script src="summary_files/jqueryui-1.11.4/jquery-ui.min.js"></script>
+<link href="summary_files/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="summary_files/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="summary_files/navigation-1.1/tabsets.js"></script>
+<link href="summary_files/highlightjs-9.12.0/default.css" rel="stylesheet" />
+<script src="summary_files/highlightjs-9.12.0/highlight.js"></script>
+
+<style type="text/css">code{white-space: pre;}</style>
+<style type="text/css">
+  pre:not([class]) {
+    background-color: white;
+  }
+</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+<style type="text/css">
+h1 {
+  font-size: 34px;
+}
+h1.title {
+  font-size: 38px;
+}
+h2 {
+  font-size: 30px;
+}
+h3 {
+  font-size: 24px;
+}
+h4 {
+  font-size: 18px;
+}
+h5 {
+  font-size: 16px;
+}
+h6 {
+  font-size: 12px;
+}
+.table th:not([align]) {
+  text-align: left;
+}
+</style>
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+code {
+  color: inherit;
+  background-color: rgba(0, 0, 0, 0.04);
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+</style>
+
+
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "&#xe258;";
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+@media print {
+.toc-content {
+  /* see https://github.com/w3c/csswg-drafts/issues/4434 */
+  float: right;
+}
+}
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row-fluid">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="fluid-row" id="header">
+
+
+
+<h1 class="title toc-ignore">Webrender Fenix perf experiment</h1>
+<h4 class="author">tdsmith</h4>
+<h4 class="date">2020-02-19</h4>
+
+</div>
+
+
+<div id="abstract" class="section level1">
+<h1>Abstract</h1>
+<p>The performance effects of enabling WebRender in the 3.2.0/3.2.1 release of Firefox Preview for Android (“Fenix”) on Pixel 2/3 devices were measured with an A/B experiment (<a href="https://experimenter.services.mozilla.com/experiments/control-webrender-rollout-for-fenix/">Experimenter link</a>).</p>
+<p>Metrics that decreased were page load time (95% CI: 0.91-0.98x), potential checkerboarding time (0.31-0.43x), and paint times (content full paint time: 0.55-0.58x)</p>
+<p>As expected, composite time increased 2.54-2.65x, because WebRender does more work during compositing. Content frame time also increased (1.05-1.3x).</p>
+<p>This experiment achieved a first look at WebRender performance in the wild on Fenix.</p>
+</div>
+<div id="introduction" class="section level1">
+<h1>Introduction</h1>
+<p>The WebRender perf experiment was deployed to 100% of both “normal” and “XL” variants of the Pixel 2, Pixel 3, and Pixel 3a devices.</p>
+<p>The experiment was supposed to start January 27, 2020; it actually went live January 31, after fixing a Mako filter expression error.</p>
+<p>The experiment was affected by <a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1612940">a Glean bug</a> that caused pings from enrolled users to fail schema validation. The schema was adjusted February 4 to accept these pings. Pings between January 31 and February 4 were dropped.</p>
+<p>This report includes pings received between February 4 and February 18, 2020.</p>
+<p>We received pings from about 5,000 clients in each branch.</p>
+<p>The Pixel 3 variants were more common than the Pixel 2 variants, but all models were represented:</p>
+<p><img src="summary_files/figure-html/unnamed-chunk-1-1.png" width="672" /></p>
+<p>About 3,000 clients in each branch sent us pings that contained any compositing activity. About half of all received <a href="https://mozilla.github.io/glean/book/user/pings/metrics.html"><code>metrics</code> pings</a> did not contain any compositing activity, or had a compositor that was inconsistent with the experiment branch the client was supposed to be enrolled in. The former condition predominated.</p>
+<p><img src="summary_files/figure-html/unnamed-chunk-2-1.png" width="672" /></p>
+<p>Two known issues are expected to contribute to the large volume of metrics pings without composites:</p>
+<ul>
+<li><p><a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1597980">Bug 1597980</a> resulted in <code>metrics</code> pings being sent in cases where there was no client activity. The fix had landed in Fenix Nightly, but not Release, before this experiment launched, and was not deployed to our clients.</p></li>
+<li><p><a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1612283">Bug 1612283</a> resulted in Glean failing to accumulate samples from GeckoView for short user sessions (less than 5 seconds). It’s not clear how many clients or pings were affected. The fix landed in Glean’s master branch during the study and was not deployed to clients.</p></li>
+</ul>
+<p>This experiment was overlaid on top of <a href="https://github.com/mozilla-mobile/fenix/issues/7795">an experiment</a> to assess the impact of <a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1591725">changing compiler optimizer flags</a>. The separate legs were delivered through the Play Store as different Fenix versions – either 3.2.0 or 3.2.1.</p>
+<p>The randomization mechanisms sorting users into branches for each study were independent and our users were equally balanced between the optimizer-flag experiment branches, so I assert that the optimizer-flag study is ignorable and do not consider it further.</p>
+<p><img src="summary_files/figure-html/unnamed-chunk-3-1.png" width="672" /></p>
+<p>The plot below summarizes the difference in the median client’s average performance metrics with Webrender enabled, with bootstrapped 95% confidence intervals. The “consistent <code>compositor_last_seen</code>” series is probably the correct value to reference. Because we don’t completely understand why compositor was sometimes missing or inconsistent, the “all pings” series is presented for comparison, in case pings were missing for reasons that could bias the results, but (except for total checkerboarding time) the results only include pings where there was any activity for that metric. In cases where the “consistent compositor” and “all pings” results show different trends, we should interpret the results with caution.</p>
+<p>The “all pings” result for the total checkerboarding time was zero because the median client in the “all pings” case experienced no checkerboarding (and perhaps had no web content activity at all).</p>
+<p><img src="summary_files/figure-html/unnamed-chunk-4-1.png" width="384" /></p>
+<p>The plots below show the distributions of user means for each metric. All pings were considered unless indicated. “Consistent pings” means that only pings where the compositor was consistent with the assigned experiment branch are shown. Medians of the distributions are indicated by vertical lines.</p>
+</div>
+<div id="page-load-time" class="section level1">
+<h1>Page load time</h1>
+<p><img src="summary_files/figure-html/unnamed-chunk-5-1.png" width="672" /></p>
+</div>
+<div id="total-checkerboarding-time" class="section level1">
+<h1>Total checkerboarding time</h1>
+<p><img src="summary_files/figure-html/unnamed-chunk-6-1.png" width="672" /></p>
+<p><img src="summary_files/figure-html/unnamed-chunk-7-1.png" width="672" /></p>
+</div>
+<div id="composite-time" class="section level1">
+<h1>Composite time</h1>
+<p><img src="summary_files/figure-html/unnamed-chunk-8-1.png" width="672" /></p>
+</div>
+<div id="content-full-paint-time" class="section level1">
+<h1>Content full paint time</h1>
+<p><img src="summary_files/figure-html/unnamed-chunk-9-1.png" width="672" /></p>
+</div>
+<div id="content-paint-time" class="section level1">
+<h1>Content paint time</h1>
+<p><img src="summary_files/figure-html/unnamed-chunk-10-1.png" width="672" /></p>
+</div>
+<div id="content-frame-time-vsync" class="section level1">
+<h1>Content frame time (vsync)</h1>
+<p><img src="summary_files/figure-html/unnamed-chunk-11-1.png" width="672" /></p>
+<p><img src="summary_files/figure-html/unnamed-chunk-12-1.png" width="672" /></p>
+</div>
+<div id="content-frame-time-paint" class="section level1">
+<h1>Content frame time (paint)</h1>
+<p><img src="summary_files/figure-html/unnamed-chunk-13-1.png" width="672" /></p>
+</div>
+
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
+</script>
+
+<!-- code folding -->
+
+<script>
+$(document).ready(function ()  {
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_').toLowerCase();
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

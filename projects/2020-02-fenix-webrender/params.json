@@ -1,0 +1,6 @@
+[
+    {"name": "experiment_start", "parameterType": {"type": "DATE"}, "parameterValue": {"value": "2020-02-04"}},
+    {"name": "experiment_end", "parameterType": {"type": "DATE"}, "parameterValue": {"value": "2020-02-18"}},
+    {"name": "enrollment_end", "parameterType": {"type": "DATE"}, "parameterValue": {"value": "2020-02-11"}},
+    {"name": "slug", "parameterType": {"type": "STRING"}, "parameterValue": {"value": "webrender-performance-comparison-experiment"}}
+]

@@ -1,0 +1,5 @@
+Build process:
+* `PYTHONPATH=$PWD luigi --local-scheduler --module query Experiment`
+* Run bootstrap.R
+* Build summary.Rmd
+
