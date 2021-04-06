@@ -73,7 +73,7 @@ firefox site/index.html
 ## Publish
 
 To publish your report, create a pull request and get review.
-Once your report is merged to master,
+Once your report is merged to main,
 it will automatically be pushed to [dev RTMO]
 
 For example, using [GitHub's CLI, `hub`](https://github.com/github/hub):
