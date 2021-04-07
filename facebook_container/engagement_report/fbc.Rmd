@@ -1,0 +1,257 @@
+---
+title: "Engagement Levels for Users with Facebook Container"
+author: "Ben Miroglio"
+date: "3/26/2019"
+output: 
+  html_document:
+    theme: cosmo
+    toc_float: true
+---
+
+This analysis is in response to [Bug 1538406: Measure engagement of Facebook Container addon users](https://bugzilla.mozilla.org/show_bug.cgi?id=1538406).
+
+# TL;DR
+
+* While the Facebook container [DAU/WAU/MAU charts](https://metrics.mozilla.com/protected/bmiroglio/firefox-addons/_site/facetainer.html) are ever-increasing, still only 0.4% of users have the extension.
+* The 0.4% of users that have Facebook Container, on average, report 47%, 53% and 83% **more** Active Hours, Total URI counts and SAP searches, respectively, than users from the general Firefox population.
+* The 0.4% of users that have Facebook Container, on average, report 17% and 7% **less** Ad Impressions and Ad Clicks, respectively, than users from the general Firefox population.
+* **This report does not claim that the differences we see for users with Facebook Container are a result of installing Facebook Container. All we can say is that users with the extension happen to be more (or less) engaged when considering certain metrics.**
+  + Users with Facebook Container are likely more engaged to begin with, however we do not investigate this here. This is a classic correlation vs. causation issue. All this report can offer is a correlation. While there are many avenues worth exploring here, the time-sensitive nature of this request limit the depth of the report.
+  
+  
+---
+
+# Data
+
+This analysis uses a 1% sample of Release 65+ Firefox from 2019-02-01 to 2019-02-21. ETL code is [here](https://dbc-caf9527b-e073.cloud.databricks.com/#notebook/93692/command/94130).
+
+---
+
+
+# Analysis Results
+
+All metrics below are calculated **daily user averages.** That is to say: we take the average value for a metric per-user-per-day, and then take one more average creating what can be thought of as the Mean(Average Daily value Per User) for each metric. This helps give a more reliable picture when faced with outliers.
+
+As you move through this section, each subsequent table/chart is showing a slightly more detailed view of the same information.
+
+We look at the following metrics:
+
+* **Active Hours**
+* **Total URI Count**
+* **SAP Searches**
+* **Ad Impressions** (how many SERP pages contained an ad)
+* **Ad Clicks**
+* **Ad Click Through Rate** (Ad Impressions / Ad Clicks)
+
+
+### Average Daily Percent Differences
+
+Table 1 below shows the average daily percent differences in the metrics in question for users with Facebook Container compared to both the general Firefox Release population and users with self-installed add-ons. **Users with Facebook container consistently report higher engagement numbers for all metrics except the ones pertaining to ads**.
+```{r setup, echo=F}
+library(data.table)
+library(boot)
+library(ggplot2)
+library(DT)
+
+d <- fread("cat ./data/part-0000*")
+d[is.na(d)] <- 0 # set null searches and ad clicks to zer0
+
+# the general population is the addons + no_addons group
+# the sepcific fbc (FB container), ghost (Ghostery) and abp (uBlock Origin)
+# are duplicates to allow for grouped aggregation.
+gen <- d[(addon_group!="fbc") & (addon_group != "ghost") & (addon_group != 'abp')]
+gen$addon_group <- "general"
+d <- rbind(d, gen)
+d$addon_group <- factor(d$addon_group)
+
+
+# bootstraps the mean of a vector
+bootstrap_mean <- function(vec) {
+  N <- 10000 # cap this at 10k since using length(vec) is quite expensive
+  sapply(1:N, function(x) {
+    s <- sample(vec, size=N, replace=T)
+    mean(s)
+  })
+}
+
+# for a df, boostrap the mean of `metric`
+# by the groups specfic to this problem (addon_group)
+bootstrap_metric <- function(df, metric) {
+  ret <- data.table()
+  for (g in unique(df$addon_group)) {
+    df_g <- df[addon_group==g]
+    boot <- bootstrap_mean(df_g[,get(metric)])
+    boot_lwr <- quantile(boot, .05)
+    boot_upr <- quantile(boot, .95)
+    ret = rbind(ret, data.table(boot=boot,
+                                lwr=boot_lwr,
+                                upr=boot_upr,
+                                metric=metric,
+                                addon_group=g))
+  }
+  ret
+}
+
+
+```
+
+
+
+```{R, cache=F, fig.width=12, fig.height=4, echo=F}
+ 
+# for each metric, get a bootstrapped mean with confidence intervals
+# limiting to lower 99% given long CI tails due to upper 1%
+sap <- bootstrap_metric(d[sap < quantile(d$sap, .99)], "sap")
+ah <- bootstrap_metric(d[active_hours < quantile(d$active_hours, .99)], "active_hours")
+turi <- bootstrap_metric(d[total_uri_count < quantile(d$total_uri_count, .99)], "total_uri_count")
+ad_impr <- bootstrap_metric(d[(scalar_parent_browser_search_with_ads_sum < 
+                                   quantile(d$scalar_parent_browser_search_with_ads_sum, .99))], 'scalar_parent_browser_search_with_ads_sum')
+ad_clicks <- bootstrap_metric(d[(scalar_parent_browser_search_ad_clicks_sum < 
+                                   quantile(d$scalar_parent_browser_search_ad_clicks_sum, .99))], 'scalar_parent_browser_search_ad_clicks_sum')
+ad_ctr <- bootstrap_metric(d[ctr < quantile(d$ctr, .99)], "ctr")
+
+
+
+# the upr and lwr variables are constant,
+# taking the mean just for structural needs
+m <- rbind(sap, ah, turi, ad_impr, ad_clicks, ad_ctr, turi)[,.(mean_metric=mean(boot), upr=mean(upr), lwr=mean(lwr)), .(metric, addon_group)]
+
+metric_name_map <- list(
+  'sap'='SAP',
+  'active_hours'='Active Hours',
+  'total_uri_count'='Total URI Count',
+  'scalar_parent_browser_search_with_ads_sum'="Ad Impressions",
+  'scalar_parent_browser_search_ad_clicks_sum'="Ad Clicks",
+  'ctr'="Ad Click Through Rate",
+  'webex'="WebExtension"
+)
+
+label_name_map <- list(
+  'fbc'="Facebook Container",
+  'ghost'='Ghostery',
+  'abp'='uBlock Origin',
+  'addon'='Any Add-on',
+  'no_addons'="No Add-ons",
+  'general'="General Population"
+)
+
+m$metric <- sapply(m$metric, function(x) metric_name_map[x][[1]])
+m$addon_group <- sapply(m$addon_group, function(x) label_name_map[x][[1]])
+m$addon_group <- factor(m$addon_group, levels=rev(c("Facebook Container",
+                                                    'Ghostery', 'uBlock Origin',
+                                                    'Any Add-on',
+                                                    'No Add-ons',
+                                                    'General Population')))
+
+m$metric <- factor(m$metric, levels=c("Active Hours", 
+                                          'Total URI Count', 
+                                          'SAP', 
+                                          'Ad Impressions', 
+                                          'Ad Clicks', 
+                                          'Ad Click Through Rate'))
+
+
+```
+
+```{r, echo=F}
+base_gen <- m[addon_group == 'General Population']
+mj <- merge(m, base_gen[,.(metric, base=mean_metric)], by='metric')
+
+base_addon <-  m[addon_group == 'Any Add-on']
+mj <- merge(mj, base_addon[,.(metric, base_a=mean_metric)], by='metric')
+
+mj$pct_diff <- (mj$mean_metric - mj$base) / mj$base
+mj$pct_diff_a <-  (mj$mean_metric - mj$base_a) / mj$base_a
+
+datatable(mj[addon_group=='Facebook Container',.(metric, pct_diff, pct_diff_a)], 
+          options=list(dom='t'),
+          colnames=c("Metric", "% Difference From General Population", "% Difference from Add-ons Users"),
+          caption='Table 1: Percent Differences in *Daily* Engagement Metrics for Users With Facebook Container vs. General pop and Add-ons Users') %>%
+    formatStyle(c(1),
+    fontWeight = "bold") %>%
+  formatPercentage(c(2, 3), digits=2)
+```
+
+### Average Daily Values
+
+The following table/chart show the average daily values for 6 different "Sub Populations":
+
+* **General Population**: the population for this analysis (not a sub-population)
+* **No Add-ons**: Users without self-installed Add-ons
+* **Any Add-ons**: Users with 1+ self-installed Add-ons
+* **uBlock Origin**: Users with the uBlock Origin extension
+* **Ghostery**: Users with the Ghostery extension
+* **Facebook Container**: Users with the Facebook Container extension
+
+
+```{r, echo=F}
+pcts <- data.table(abp=55639,addon=532481, fbc=7438, ghost=12955, no_addons=1429903)
+pcts<-data.table(group=colnames(pcts), pct=t(pcts) / 1962384)
+pcts$group <- sapply(pcts$group, function(x) label_name_map[x][[1]])
+pcts$group <- factor(pcts$group, levels=rev(c("Facebook Container",
+                                                    'Ghostery', 'uBlock Origin',
+                                                    'Any Add-on',
+                                                    'No Add-ons')))
+```
+
+uBlock Origin and Ghostery are included for comparison since they in the same vein category-wise as Facebook Container. To put these various sub-populations into context, Table 2 below the percentage of users that belong to each sub-group. Some of these groups are overlapping, therefore the percentages won't sum to 100%. Note that these percentages are over a 3 week period, and will likely differ slightly from something you've seen before.
+
+
+```{r, echo=F}
+datatable(pcts[order(-pcts$pct.V1)],
+          options=list(dom='t'),
+          colnames=c("Sub-Population", "% Users"),
+          caption='Table 2: Percent Users Belonging to Each Sub Population') %>%
+    formatStyle(c(1),
+    fontWeight = "bold") %>%
+  formatPercentage(c(2), digits=2)
+
+```
+
+
+Looking below at Table 3, **users with Facebook container report 1.22 average daily active hours, 201 average daily URIs, etc**. As observed in Table 1, these metrics are consiently higher for Facebook Container users except for those involving ads.
+
+
+```{R, echo=F, warning=F, message=F}
+library(reshape2)
+tab <- dcast(m, addon_group~metric, value.var='mean_metric')
+
+datatable(tab, 
+          options=list(dom='t'),
+          colnames=c("Sub-Population", colnames(tab)[2:length(colnames(tab))]),
+          caption='Table 3: Avergae *Daily* Values by sub-population') %>%
+    formatStyle(c(1),
+    fontWeight = "bold") %>%
+  formatRound(c(2, 3, 4, 5, 6), digits=2) %>%
+  formatRound(7, digits=4)
+```
+
+
+The chart below shows the same information as Table 2, with 95% confidence intervals included. Note that Ghostery users report consistently low ad metrics. This would be expected for uBlock Origin but not necessarily Ghostery. This involves some further exploration, but it is not in scope for this particular report.
+
+
+```{r, cache=F, fig.width=12, fig.height=4, echo=F}
+m$addon_group <- factor(m$addon_group, levels=c("Facebook Container",
+                                                    'Ghostery', 'uBlock Origin',
+                                                    'Any Add-on',
+                                                    'No Add-ons',
+                                                    'General Population'))
+ggplot(m, aes_string(x='addon_group',
+                  y='mean_metric', 
+                  colour='metric')) +
+     geom_errorbar(aes_string(ymin='lwr', 
+                             ymax='upr'), 
+                  width = .1) +
+    geom_point(size=2) +
+    coord_flip() + 
+     theme_bw() + theme(legend.position="bottom", 
+                                      legend.title=element_blank()) +
+    facet_grid(.~metric, scales='free') +
+    xlab("Sub-Population") + ylab("Bootstapped Mean Estimates") + 
+    labs(title='Bootstapped Mean Estimates (w 95% CIs)',
+         subtitle="Estimate=Mean(Average Daily Value per Client)")
+
+```
+
+
+
