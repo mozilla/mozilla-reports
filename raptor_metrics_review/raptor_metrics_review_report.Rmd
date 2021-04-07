@@ -1,0 +1,536 @@
+---
+title: "Raptor Metrics Review"
+author: "Corey Dow-Hygelund, Mozilla Data Science"
+date: 'Last Updated: `r format(Sys.time(), "%B %d, %Y")`'
+output: 
+  html_document:
+    theme: cosmo
+    toc: true
+    toc_float: true
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r imports, message=FALSE, warning=FALSE, echo=FALSE}
+library(dplyr)
+library(lubridate)
+library(stringr)
+library(ggplot2)
+library(tidyr)
+library(DescTools)
+```
+
+```{r data_loading, message=FALSE, warning=FALSE, echo=FALSE}
+df_long <- read.csv('data/activedata_125d_v5_win6410_long.csv', stringsAsFactors = FALSE) %>%
+  mutate(run_datetime = as_datetime(run_timestamp)) %>%
+  mutate(test = str_remove(result_test, paste(run_suite, '-', sep=''))) %>%
+  filter(run_datetime >= as.Date("2019-02-01")) %>%
+  filter(!test %in% c('ttfi', 'hero:hero1')) %>%
+  separate(run_name, c('run_name_platform'), sep = '-raptor', remove = FALSE)
+
+df_long %>% filter(run_name_platform == 'test-windows10-64/opt') -> df_long
+df_long %>% group_by(run_suite, run_datetime, task_id, test, build_revision) %>%
+  summarise(mean = mean(measure), median = median(measure), std = sd(measure), count = length(measure)) ->df_long_agg
+
+df_wide <- df_long %>% 
+  # select(-run_datetime, -result_test) %>%
+  select(-result_test) %>%
+  spread(test, measure)
+
+df_win1064 <- df_wide %>% na.omit()
+
+df_win1064$gmean_fcp_lt <- df_win1064 %>% select(fcp, loadtime) %>% apply(1, Gmean)
+```
+
+```{r data_analysis, message=FALSE, warning=FALSE, echo=FALSE}
+df_win1064 %>% filter(build_revision == '00432a450b3af67c4d5711810691b27093880c62') %>% distinct(run_suite) -> first_build_run_suites
+
+check_run_suites <- function(x){
+ return(length(setdiff(first_build_run_suites$run_suite, unique(x)))) 
+}
+
+df_win1064 %>% 
+  group_by(build_revision) %>%
+  summarise(first_date=first(run_timestamp)) %>%
+  arrange(desc(first_date))  -> first_builds
+
+
+df_win1064 %>%
+  # filter(build_revision %in% first_builds$build_revision) %>%
+  group_by(build_revision) %>%
+  summarise(all_run_suites = check_run_suites(run_suite)) -> ref_run_suite_status
+
+first_builds %>% filter(build_revision %in% ref_run_suite_status$build_revision[ref_run_suite_status$all_run_suites==0]) %>% 
+  arrange(first_date) %>%
+  head() -> first_builds
+
+df_win1064 %>% filter(build_revision %in% first_builds$build_revision) %>% group_by(run_suite) -> df_grps 
+df_ref <- group_split(df_grps)
+df_keys <- group_keys(df_grps)
+
+ref_cdf <- list()
+df_ref %>% lapply(function(x) ecdf(x$loadtime)) -> ref_cdf$loadtime # df_lt_ecdfs
+df_ref %>% lapply(function(x) ecdf(x$gmean_fcp_lt)) -> ref_cdf$gmean_fcp_lt # df_gm_ecdfs
+names(ref_cdf$loadtime) <- names(ref_cdf$gmean_fcp_lt) <- df_keys$run_suite
+
+calculate_p_v2 <- function(run_suite, df_gp, metrics){
+  for (metric in metrics){
+    p <- NULL
+    if (run_suite %in% names(ref_cdf[[metric]])){
+      p <- ref_cdf[[metric]][[run_suite$run_suite]](df_gp[[metric]]) # $loadtime)
+    }
+    df_gp[[paste('p_', metric, sep='')]] <- p
+  }
+  return(df_gp)
+}
+
+df_win1064 %>% group_by(run_suite) %>%
+  group_modify(~calculate_p_v2(.y, .x, c('loadtime', 'gmean_fcp_lt'))) -> df_ps
+
+# df_ps %>% filter(run_suite == df_keys$run_suite[2]) %>% head(n=10)
+
+incomplete_pages <- c("raptor-tp6-google-mail-firefox", "raptor-tp6-amazon-firefox", "raptor-tp6-facebook-firefox", 
+                      "raptor-tp6-pinterest-firefox", "raptor-tp6-ebay-firefox", "raptor-tp6-wikipedia-firefox")
+
+df_ps %>% filter(!run_suite %in% incomplete_pages) %>%
+  group_by(task_id, run_suite, run_datetime, build_revision) %>% 
+  summarise(mean_p_lt = mean(p_loadtime), median_p_lt = median(p_loadtime), std_p_lt = sd(p_loadtime),
+            mean_p_fcp_lt = mean(p_gmean_fcp_lt), median_p_fcp_lt = median(p_gmean_fcp_lt), std_p_fcp_lt = sd(p_gmean_fcp_lt)) %>%
+  na.omit() -> df_ps_agg1
+
+df_ps_agg1 %>% select(task_id, run_suite, mean_p_lt, mean_p_fcp_lt, run_datetime) %>%
+  gather('metricp', 'measure', -task_id, -run_suite, -run_datetime) -> df_ps_agg1_long
+
+df_long_agg %>% group_by(build_revision) -> br_grp
+br_grp%>% group_map(~table(.x$run_suite)) -> br_counts
+names(br_counts) <- group_keys(br_grp)$build_revision
+
+br_counts_max <- sapply(br_counts, max) 
+br_counts_max[br_counts_max != 4] -> br_buggy
+
+## FCP + Load Time
+df_ps_agg1 %>% as.data.frame() %>% filter(!build_revision %in% names(br_buggy)) %>% select(build_revision, run_suite, mean_p_fcp_lt) %>% # head()
+   spread(run_suite, mean_p_fcp_lt) -> br_ps_fcp_lt
+
+df_ps_agg1 %>% as.data.frame() %>% filter(!build_revision %in% names(br_buggy)) %>% select(build_revision, run_suite, std_p_fcp_lt) %>% # head()
+   spread(run_suite, std_p_fcp_lt) -> br_ps_fcp_lt_sd
+
+br_ps_fcp_lt %>% # select(-starts_with("raptor-tp6-facebook-firefox")) %>% 
+  na.omit() %>% mutate(score = rowMeans(select(., starts_with("raptor")))) -> br_ps_fcp_lt
+br_ps_fcp_lt_sd %>% # select(-starts_with("raptor-tp6-facebook-firefox")) %>%
+  na.omit() %>% mutate(sd = rowMeans(select(., starts_with("raptor")))) -> br_ps_fcp_lt_sd
+
+df_win1064 %>% group_by(build_revision) %>% summarise(date = min(run_datetime)) -> build_dates
+
+br_ps_fcp_lt %>% select(build_revision, score) %>%
+  inner_join(select(br_ps_fcp_lt_sd, build_revision, sd)) %>%
+  inner_join(build_dates) %>%
+  mutate(aggregation = 'Load Time * FCP') -> br_ps_fcp_lt_f
+
+```
+
+
+# tl;dr
+A method has been developed to calculate a single index for a build and platform, based upon the Raptor test results for various `run_suite` and corresponding metrics of the build. This method handles potentially missing `run_suite` measurements. 
+
+The method involves the usage of a reference:
+
+1. Selecting a set of one or more reference builds. These could be based upon a reference date, or upon a build that corresponds to a specific release or other build characteristic.
+2. Geomeaning the `loadtime` and `fcp` of each sample (total of 25) for each `run_suite`. 
+3. Select a set of reference pages for scoring. Criteria for selection can include most frequently used (i.e., greatest coverage in time), or greatest variation in the metrics (i.e., greatest coverage in metric space). 
+5. Pool the samples for each `run_suite` for all reference builds. 
+6. Calculate the sample empirical cumulative distribution function (eCDF) of each `run_suite`.
+
+Once the CDFs have been calculated, scores can be calculated for every build:
+
+1. For each `run_suite` build sample, calculate its $p_{run\_suite}$ from the relevant eCDF. 
+2. If necessary, impute $p_{run\_suite}$ for missing `run_suite`.
+3. Calculate the mean ($p$) and standard deviation($\sigma_{p}$) of $p_{run\_suite}$ from the 25 samples.
+4. Calculate the final score by taking the mean across $p$ .
+
+The final score is a value from 0 to 1, with lower being better (e.g., decreased `loadtime` and/or `fcp`)
+
+The following plot illustrates the result for a geomean `loadtime` and `fcp` across builds since February 1st for the Windows 10-64 platform.
+
+
+```{r, echo=FALSE}
+ggplot(br_ps_fcp_lt_f, aes(date, score)) +
+  geom_point() + 
+  geom_ribbon(aes(ymin=score-sd, ymax=score+sd), alpha=0.4) + 
+  theme_bw() +
+  labs(x = 'Build Date', y = 'Score: Load Time * FCP', title = 'Feburary Reference: Windows 10-64 Build Scores') 
+```
+
+
+# Introduction
+
+The following analysis focuses upon Raptor page load metrics from warm runs, on the Windows platform, for mozilla-central builds.
+
+## Raptor
+A brief description of Raptor page load testing follows:
+
+* Every push to the repo (e.g. mozilla-central, mozilla-inbound, try) fires off the creation of a build.
+* Every new build fires off a set of `run_suite` page load tests for each platform (e.g., Windows 10-64).
+     + A `run_suite` is a serialized page (e.g., Amazon, Facebook) that is played back via WebReplay.
+     + After loading the page once after startup, the page is loaded 25 times for Desktop warm tests.
+* Each `run_suite` test measures four metrics for each of the 25 samples: `r unique(paste(unique(df_long$test), collapse = ', '))`
+
+Therefore, the results for a build and platform is composed of _n_ `run_suite`, 4 metrics, and 25 samples ($\underset{n\times 4 \times 25}{\mathrm{X}})$. 
+
+## Build Score
+A single score for a Firefox build should have two traits: (i) actionability, and (ii) interpretability. To produce a single score from Raptor page load tests requires multiple levels of aggregation:
+
+1. 4 metrics (`r unique(paste(unique(df_long$test), collapse = ', '))`) into a single value
+2. 25 samples into a single value
+3. All `run_suite` into a single value
+
+## Run Suite Incompleteness
+One characteristic of Raptor testing is that there are many different cases of `run_suite` incompleteness, where one or more `run_suite` are not tested for a specific build. 
+
+* Errors in a specific page causing the tests to fail.
+     + This can span across weeks of builds.
+* Specific pages not being tested.
+
+These complicate aggregating the individual `run_suite` into a single value in a consistent manner.  For this analysis, `r length(unique(df_ps_agg1$run_suite))` of the most common `run_suite` were chosen to minimize these issues. Builds that were missing one or more `run_suite` were dropped from the analysis. `r length(unique(br_ps_fcp_lt$build_revision))` of builds had the complete set of `run_suite` out of `r round(length(unique(df_long$build_revision)))` (`r round(length(unique(br_ps_fcp_lt$build_revision))/length(unique(df_long$build_revision)), 2)*100`%).
+
+The dropped and incomplete `run_suite` are apparent in following figure. **NOTE**: The scales for each facet are independent to illustrate the changes of these timings across build/time. 
+
+```{r, fig.width=14, fig.height=100, echo=FALSE}
+ggplot(df_long_agg, aes(run_datetime, mean)) +
+  geom_point(aes(color = test), alpha=0.5) + 
+  facet_grid(rows = vars(run_suite), scales = 'free') + 
+  scale_y_log10() + theme_bw() + 
+  labs(x = 'Build Date', y = 'Metric Timing (ms)', title = 'Windows 10-64 Page Timings', color='metric') + 
+  theme(legend.position="top")
+```
+
+### Imputation
+One method that can help resolve the dropped `run_suite` issue, is imputating the missing values. This can be performed across a large range of historical data, and can take into account the entire joint `run_suite` distribution. Such methods include matrix completion. 
+
+As seen in the figure above, there are several popular pages, which loose data on May 1st. The combined increased uncertainty of imputating multiple `run_suite` yields a potentially unreliable score for these cases. This remains a weakness with this method that needs to be addressed.
+
+### Clustering
+Another method that can help both issues is mapping the `run_suite` into a set of categories, each similar in its historical page load behavior. The aggregation across `run_suite` is performed across categories, where `run_suite` within the same categories are averaged. Therefore, each category has equal weight. Missing `run_suite` in a given category will have their contribution coming from available `run_suite` in the same category. 
+
+This method still requires a minimum set of `run_suite` to be available, namely at least one of each category. 
+
+# Test Aggregation
+Each `run_suite` currently contains four metrics: `r unique(paste(unique(df_long$test), collapse = ', '))`. Currently, the mean of the 25 samples for each metric is calculated, and the results are geomeaned together. The following analysis compares these metrics across samples.
+
+## Correlation
+
+The metrics are expected to be correlated, as they are measuring different aspects of the same process. Given the degree of correlation, some measures may be overly redundant and can be excluded from the score. 
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+library(factoextra)
+library(FactoMineR)
+library("corrplot")
+
+res <- cor(df_win1064 %>% select(dcf, fcp, fnbpaint, loadtime))
+corrplot(res, method='pie')
+```
+
+Immediately evident is that `fcp` and `fnbpaint` are almost perfectly correlated. Therefore, only one should be added to aggregation. In addition, `fcp`/`fnbpaint` have a high degree of correlation with `dcf`. The lowest levels of correlation are with `fcp` and `loadtime`.   
+
+## PCA
+
+A common method for dimensionality reduction utilized in generating composite indices is PCA. One strength of PCA is that it is "data-driven". However, intepretability of the final index can be lacking. The following performs PCA on the metrics `loadtime`, `fcp` and `dcf`:
+
+```{r echo=FALSE}
+df_win1064 %>%
+  select(dcf, fcp, loadtime) %>%
+  PCA(scale.unit = TRUE, graph = FALSE) -> df_1.pca
+```
+
+```{r, echo=FALSE}
+fviz_eig(df_1.pca)
+```
+
+Almost 77% of the variance observed can be explained by a single dimension. Utilizing the first dimension as the aggregated metric score is possible. However, it isn't easily intepretable, due to the differing contributions (weight) of each metric to this dimension. 
+
+
+```{r, echo=FALSE}
+fviz_pca_var(df_1.pca,
+             col.var = "contrib", # Color by contributions to the PC
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE     # Avoid text overlapping
+             )
+```
+
+The factor loadings for `dcf` and `fcp` are very similar. Therefore, we select these two metrics two utilize in the metric aggregation step.
+
+
+## Geomean
+
+The geomean of `loadtime` and `fcp` is used to reduce these metrics to a single value. The geomean has the nice properties of being easily intepretable, in addition to equally weighting each of the metrics. This yields a single value for each of the 25 samples. 
+
+# eCDF
+<add above plot reference>
+To aggregate across `run_suite` metrics requires mapping to a common scale. Page loading timings can vary widely across different pages, leading to different scales as seen in the plot above. The method following achieves a mapping by referencing against a set of builds. These reference builds can be determined in different ways, including
+
+* A set around a given date.
+* A set around a given release build. 
+
+For the following analysis, we choose a set of five builds from the beginning of February. As noted above, a set of the most common `r length(unique(df_ps_agg1$run_suite))` `run_suite` for the builds throughout the observation window were used.
+
+For each `run_suite`, all of the reference build samples were combined into a single vector of 125 samples. Next, the eCDF was fit from these samples. This yielded an eCDF for each `run_suite`. 
+
+Finally, each geomean sample is mapped to $p_{run\_suite}$ using the relevant eCDF. The following is an illustrative plot of the technique, where the blue points were used to fit the eCDF, and the orange point represent newly mapped samples. 
+
+```{r, echo=FALSE}
+idx <- 12
+exp_1 <- sort(df_ref[[idx]]$gmean_fcp_lt)
+exp_1_cdf <- ref_cdf$gmean_fcp_lt[[idx]](exp_1)
+rs <- names(ref_cdf$gmean_fcp_lt)[idx]
+
+df_win1064 %>% filter(run_timestamp == max(run_timestamp)) %>% distinct(build_revision) -> last_build_id
+
+df_win1064 %>% 
+  filter(build_revision == last_build_id[1,1]) %>% 
+  filter(run_suite == rs) %>%  select(gmean_fcp_lt) -> exp_2
+
+exp_df <- data.frame(raw = exp_1, cdf = exp_1_cdf, type = 'Reference', stringsAsFactors = FALSE) %>%
+  bind_rows(data.frame(raw=exp_2$gmean_fcp_lt, cdf = ref_cdf$gmean_fcp_lt[[idx]](exp_2$gmean_fcp_lt), type = 'Subsequent', 
+                       stringsAsFactors = FALSE))
+
+ggplot(exp_df, aes(raw, cdf)) +
+  geom_point(aes(color = type)) + 
+  theme_bw() + 
+  labs(x = 'Load Time * FCP', y = expression(p[run_suite]), title = paste('eCDF:', rs))
+```
+
+# Sample Aggregation
+
+After mapping the 25 samples to $p_{run\_suite}$, the mean ($p$) and standard deviation ($\sigma_{p}$) are calculated. This yields two values for each `run_suite` for a given build and platform. 
+
+The following is a plot of the result for the February reference builds and geomean `loadtime` and `fcp`. The points represent builds and shaded region represent a standard deviation 
+
+```{r p_rs_plot, fig.width=14, fig.height=40, echo=FALSE}
+ggplot(df_ps_agg1, aes(run_datetime, mean_p_fcp_lt)) +
+  geom_point()+
+  facet_grid(rows = vars(run_suite)) + #, scales = 'free') +
+  geom_ribbon(aes(ymin=mean_p_fcp_lt-std_p_fcp_lt, ymax=mean_p_fcp_lt+std_p_fcp_lt), alpha=0.4) + 
+  theme_bw() + 
+  labs(y = 'Score: Load Time * FCP', x = 'Build Date', title = 'Feburary Reference: Windows 10-64 p score')
+```
+
+# Run Suite Aggregation
+The final step is aggregregating the $p$ for each `run_suite` into a single value for the build and platform. This is achieved taking the mean of $p$ and $\sigma_{p}$. 
+
+```{r, echo=FALSE}
+ggplot(br_ps_fcp_lt_f, aes(date, score)) +
+  geom_point() + 
+  geom_ribbon(aes(ymin=score-sd, ymax=score+sd), alpha=0.4) + 
+  theme_bw() +
+  labs(x = 'Build Date', y = 'Score: Load Time * FCP', title = 'Feburary Reference: Windows 10-64 Build Scores') 
+```
+
+Characteristics to note:
+
+* Large jump in the middle of Feburary: this is observed across several `run_suite`
+     + Observed across several `run_suite` in the timings 
+* Small drop at the beginning of May.
+     + Multiple `run_suite` have varying levels of decrease, whereas `raptor-tp6-bing-firefox` increases. The net effect is a decrease.
+* Decrease in $\sigma_{p}$ in middle of February.
+* Increase in $\sigma_{p}$ at beginning of May.
+
+
+# Geomean versus Load Time
+The analysis above aggregates the metrics by utilizing a geomean. In practice, `loadtime` has been used for decision making purposes. In this case, the geomean can be replace with `loadtime` in the calculation of the build score. The following plot shows the differences between the geomean and `loadtime` scores:
+
+```{r, fig.width=14, fig.height=40, echo=FALSE}
+new_names <- function(x){
+  y <- 'Load Time'
+  y[x == 'mean_p_fcp_lt'] <- 'Load Time * FCP'
+  return(y)
+}
+
+df_ps_agg1_long %>% mutate(aggregation = new_names(metricp)) -> df_ps_agg1_long
+ggplot(df_ps_agg1_long, aes(run_datetime, measure)) + 
+  geom_point(aes(color = aggregation), alpha=0.8) +
+  facet_grid(rows = vars(run_suite)) + #, scales = 'free') +
+  theme_bw() + 
+  theme(legend.position="top") + 
+  labs(x = 'Build Date', y = 'Score', title = 'Feburary Reference: Windows 10-64 Build Scores')
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+df_ps_agg1 %>% as.data.frame() %>% filter(!build_revision %in% names(br_buggy)) %>% select(build_revision, run_suite, mean_p_lt) %>% # head()
+   spread(run_suite, mean_p_lt) -> br_ps_lt
+
+df_ps_agg1 %>% as.data.frame() %>% filter(!build_revision %in% names(br_buggy)) %>% select(build_revision, run_suite, std_p_lt) %>% # head()
+   spread(run_suite, std_p_lt) -> br_ps_lt_sd
+
+br_ps_lt %>% select(-starts_with("raptor-tp6-facebook-firefox")) %>% 
+  na.omit() %>% mutate(score = rowMeans(select(., starts_with("raptor")))) -> br_ps_lt
+br_ps_lt_sd %>% select(-starts_with("raptor-tp6-facebook-firefox")) %>%
+  na.omit() %>% mutate(sd = rowMeans(select(., starts_with("raptor")))) -> br_ps_lt_sd
+
+df_win1064 %>% group_by(build_revision) %>% summarise(date = min(run_datetime)) -> build_dates
+
+br_ps_lt %>% select(build_revision, score) %>%
+  inner_join(select(br_ps_lt_sd, build_revision, sd)) %>%
+  inner_join(build_dates) %>% 
+  mutate(aggregation = 'Load Time') -> br_ps_lt_f
+
+br_ps_fcp_lt_f %>% bind_rows(br_ps_lt_f) -> br_ps_full
+```
+
+```{r, echo=FALSE}
+ggplot(br_ps_full, aes(date, score)) + 
+  geom_ribbon(aes(fill=aggregation, ymin=score-sd, ymax=score+sd), alpha=0.5) + 
+  geom_point(aes(color = aggregation)) + 
+  theme_bw() + 
+  theme(legend.position="top") + 
+  labs(x = 'Build Date', y = 'Score', title = 'Feburary Reference: Windows 10-64 Build Scores') 
+  
+```
+
+Observations of the two scoring methods:
+
+* The large jump in the middle of Feburary is more extreme for `Load Time` * `FCP` geomean.
+* Smaller $\sigma_{p}$ for `Load Time` * `FCP`
+* Similar trend through the date of build.
+
+# Build Score Variation
+
+There is still quite a bit of observed variation of this score across builds. This could be characterized and included into the build score by how the $p$ and $\sigma_{p}$ are calculated and aggregated, to produce a more stable measure.
+
+# Additional Platforms
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+long_files <- c('data/activedata_125d_v5_windows10_aarch64_long.csv', 'data/activedata_125d_v5_windows10_64_shippable_long.csv',
+                'data/activedata_125d_v5_windows10_64_pgo_qr_long.csv', 'data/activedata_125d_v5_windows7_32_long.csv',
+                'data/activedata_125d_v5_windows10_64_ux_long.csv')
+    first_build_run_suites <- c('raptor-tp6-apple-firefox',
+                            'raptor-tp6-bing-firefox',
+                            'raptor-tp6-google-firefox',
+                            'raptor-tp6-imdb-firefox',
+                            'raptor-tp6-instagram-firefox',
+                            'raptor-tp6-paypal-firefox',
+                            'raptor-tp6-reddit-firefox',
+                            'raptor-tp6-twitter-firefox',
+                            'raptor-tp6-wikia-firefox',
+                            'raptor-tp6-yahoo-mail-firefox',
+                            'raptor-tp6-yahoo-news-firefox',
+                            'raptor-tp6-yandex-firefox',
+                            'raptor-tp6-youtube-firefox')
+
+  for (long_file in long_files){
+    df_long <- read.csv(long_file, stringsAsFactors = FALSE) %>%
+    mutate(run_datetime = as_datetime(run_timestamp)) %>%
+    mutate(test = str_remove(result_test, paste(run_suite, '-', sep=''))) %>%
+    filter(run_datetime >= as.Date("2019-02-01")) %>%
+    filter(!test %in% c('ttfi', 'hero:hero1')) %>%
+    separate(run_name, c('run_name_platform'), sep = '-raptor', remove = FALSE)
+  
+  # df_long %>% filter(run_name_platform == 'test-windows10-64/opt') -> df_long
+  df_long %>% group_by(run_suite, run_datetime, task_id, test, build_revision) %>%
+    summarise(mean = mean(measure), median = median(measure), std = sd(measure), count = length(measure)) ->df_long_agg
+  
+  df_wide <- df_long %>% 
+    # select(-run_datetime, -result_test) %>%
+    select(-result_test) %>%
+    spread(test, measure)
+  
+    df_win1064 <- df_wide %>% na.omit()
+    
+    df_win1064$gmean_fcp_lt <- df_win1064 %>% select(fcp, loadtime) %>% apply(1, Gmean)
+
+  
+  check_run_suites <- function(x){
+   return(length(setdiff(first_build_run_suites, unique(x)))) 
+  }
+  
+  df_win1064 %>% 
+    group_by(build_revision) %>%
+    summarise(first_date=first(run_timestamp)) %>%
+    arrange(desc(first_date))  -> first_builds
+  
+  
+  df_win1064 %>%
+    # filter(build_revision %in% first_builds$build_revision) %>%
+    group_by(build_revision) %>%
+    summarise(all_run_suites = check_run_suites(run_suite)) -> ref_run_suite_status
+  
+  first_builds %>% filter(build_revision %in% ref_run_suite_status$build_revision[ref_run_suite_status$all_run_suites==0]) %>% 
+    arrange(first_date) %>%
+    head() -> first_builds
+  
+  df_win1064 %>% filter(build_revision %in% first_builds$build_revision) %>% group_by(run_suite) -> df_grps 
+  df_ref <- group_split(df_grps)
+  df_keys <- group_keys(df_grps)
+  
+  ref_cdf <- list()
+  df_ref %>% lapply(function(x) ecdf(x$loadtime)) -> ref_cdf$loadtime # df_lt_ecdfs
+  df_ref %>% lapply(function(x) ecdf(x$gmean_fcp_lt)) -> ref_cdf$gmean_fcp_lt # df_gm_ecdfs
+  names(ref_cdf$loadtime) <- names(ref_cdf$gmean_fcp_lt) <- df_keys$run_suite
+  
+  df_win1064 %>% group_by(run_suite) %>%
+    group_modify(~calculate_p_v2(.y, .x, c('loadtime', 'gmean_fcp_lt'))) -> df_ps
+  
+  df_ps %>% filter(!run_suite %in% incomplete_pages) %>%
+    group_by(task_id, run_suite, run_datetime, build_revision) %>% 
+    summarise(mean_p_lt = mean(p_loadtime), median_p_lt = median(p_loadtime), std_p_lt = sd(p_loadtime),
+              mean_p_fcp_lt = mean(p_gmean_fcp_lt), median_p_fcp_lt = median(p_gmean_fcp_lt), std_p_fcp_lt = sd(p_gmean_fcp_lt)) %>%
+    na.omit() -> df_ps_agg1
+  
+  df_ps_agg1 %>% select(task_id, run_suite, mean_p_lt, mean_p_fcp_lt, run_datetime) %>%
+    gather('metricp', 'measure', -task_id, -run_suite, -run_datetime) -> df_ps_agg1_long
+  
+  df_long_agg %>% group_by(build_revision) -> br_grp
+  br_grp%>% group_map(~table(.x$run_suite)) -> br_counts
+  names(br_counts) <- group_keys(br_grp)$build_revision
+  
+  br_counts_max <- sapply(br_counts, max) 
+  br_counts_max[br_counts_max != 4] -> br_buggy
+  
+  ## FCP + Load Time
+  df_ps_agg1 %>% as.data.frame() %>% filter(!build_revision %in% names(br_buggy)) %>% select(build_revision, run_suite, mean_p_fcp_lt) %>% # head()
+     spread(run_suite, mean_p_fcp_lt) -> br_ps_fcp_lt
+  
+  df_ps_agg1 %>% as.data.frame() %>% filter(!build_revision %in% names(br_buggy)) %>% select(build_revision, run_suite, std_p_fcp_lt) %>% # head()
+     spread(run_suite, std_p_fcp_lt) -> br_ps_fcp_lt_sd
+  
+  br_ps_fcp_lt %>% 
+    na.omit() %>% mutate(score = rowMeans(select(., starts_with("raptor")))) -> br_ps_fcp_lt
+  br_ps_fcp_lt_sd %>% 
+    na.omit() %>% mutate(sd = rowMeans(select(., starts_with("raptor")))) -> br_ps_fcp_lt_sd
+  
+  df_win1064 %>% group_by(build_revision) %>% summarise(date = min(run_datetime)) -> build_dates
+  
+  br_ps_fcp_lt %>% select(build_revision, score) %>%
+    inner_join(select(br_ps_fcp_lt_sd, build_revision, sd)) %>%
+    inner_join(build_dates) %>%
+    mutate(aggregation = 'Load Time * FCP') -> br_ps_fcp_lt_f
+  
+  platform <- str_remove(str_extract(long_file, 'win[a-z0-9_]+'), '_long')
+  print(ggplot(br_ps_fcp_lt_f, aes(date, score)) +
+    geom_point() + 
+    geom_ribbon(aes(ymin=score-sd, ymax=score+sd), alpha=0.4) + 
+    theme_bw() +
+    labs(x = 'Build Date', y = 'Score: Load Time * FCP', title = paste('Feburary Reference:', platform)) )
+}
+```
+
+
+# Next Steps
+
+* Apply scoring method to other build platforms. 
+* Imputation of missing build suites.
+    - Determination of their effectiveness, by artifically dropping `run_suite` across ranges of time observed, and recalculating build score. 
+* Investigation of aggregation methods of $p_{run\_suite}$ to address the high levels of variation in the score. 
+* Investigate statistical methods for weighting the pages.
+    - e.g.: Clustering across metrics.
+* Aggregating across platforms to give a single score for an OS.
+   - This requires experts to weight the relative importance of each build.
+
+
+# Reference
+The code that exported the data from [ActiveData](https://wiki.mozilla.org/EngineeringProductivity/Projects/ActiveData) and prepared the dataset for this analysis is available [here](https://dbc-caf9527b-e073.cloud.databricks.com/#notebook/119376/command/119377) and [here](https://dbc-caf9527b-e073.cloud.databricks.com/#notebook/127309/command/127325). 
+
+
+
