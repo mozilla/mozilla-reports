@@ -37,7 +37,7 @@ Add a `report.json` file to your new directory.
 This registers your index.html file as a report
 and provides metadata necessary for generating the index pages.
 
-The required fields are documented in [`docere`'s documentation](docere):
+The required fields are documented in [`docere`'s documentation](https://github.com/mozilla/docere#submit-report-to-a-knowledge-repo):
 Here's a minimal example:
 
 ```json
